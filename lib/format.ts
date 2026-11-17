@@ -28,6 +28,30 @@ export function formatCompactUsd(value: number): string {
   });
 }
 
+export function formatRatio(value: number): string {
+  const abs = Math.abs(value);
+  let maximumFractionDigits = 2;
+  let minimumFractionDigits = 2;
+  if (abs > 0 && abs < 1) {
+    const digits = Math.min(8, Math.ceil(-Math.log10(abs)) + 3);
+    maximumFractionDigits = Math.max(4, digits);
+    minimumFractionDigits = 2;
+  } else if (abs < 100) {
+    maximumFractionDigits = 4;
+  }
+  return value.toLocaleString("en-US", {
+    minimumFractionDigits,
+    maximumFractionDigits,
+  });
+}
+
+export function formatSignedRatio(value: number): string {
+  const formatted = formatRatio(Math.abs(value));
+  if (value > 0) return `+${formatted}`;
+  if (value < 0) return `−${formatted}`;
+  return formatted;
+}
+
 export function formatSignedUsd(value: number): string {
   const formatted = formatUsd(Math.abs(value));
   if (value > 0) return `+${formatted}`;

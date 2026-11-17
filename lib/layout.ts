@@ -10,6 +10,7 @@ export type ChartSlot = {
   coinId: string;
   range: RangeId;
   mode: ChartMode;
+  versusId: string | null;
 };
 
 export type Layout = {
@@ -19,7 +20,7 @@ export type Layout = {
 
 export function defaultLayout(): Layout {
   return {
-    charts: [{ id: "btc", coinId: "bitcoin", range: "1D", mode: "candle" }],
+    charts: [{ id: "btc", coinId: "bitcoin", range: "1D", mode: "candle", versusId: null }],
     activeId: "btc",
   };
 }
@@ -39,11 +40,18 @@ export function sanitizeLayout(value: unknown): Layout {
     if (typeof slot.coinId !== "string" || !getCoin(slot.coinId)) continue;
     if (typeof slot.range !== "string" || !getRange(slot.range)) continue;
     if (slot.mode !== "candle" && slot.mode !== "line") continue;
+    const versusId =
+      typeof slot.versusId === "string" &&
+      slot.versusId !== slot.coinId &&
+      getCoin(slot.versusId)
+        ? slot.versusId
+        : null;
     charts.push({
       id: slot.id,
       coinId: slot.coinId,
       range: slot.range,
       mode: slot.mode,
+      versusId,
     });
     if (charts.length === MAX_CHARTS) break;
   }

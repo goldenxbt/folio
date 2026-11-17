@@ -77,7 +77,20 @@ export function Dashboard() {
     update({
       ...layout,
       charts: layout.charts.map((chart) =>
-        chart.id === layout.activeId ? { ...chart, coinId } : chart,
+        chart.id === layout.activeId
+          ? { ...chart, coinId, versusId: chart.versusId === coinId ? null : chart.versusId }
+          : chart,
+      ),
+    });
+    reveal(layout.activeId);
+  }
+
+  function selectPair(coinId: string, versusId: string) {
+    if (coinId === versusId) return;
+    update({
+      ...layout,
+      charts: layout.charts.map((chart) =>
+        chart.id === layout.activeId ? { ...chart, coinId, versusId } : chart,
       ),
     });
     reveal(layout.activeId);
@@ -87,7 +100,7 @@ export function Dashboard() {
     if (layout.charts.length >= MAX_CHARTS) return;
     const id = crypto.randomUUID();
     update({
-      charts: [...layout.charts, { id, coinId, range: "1D", mode: "candle" }],
+      charts: [...layout.charts, { id, coinId, range: "1D", mode: "candle", versusId: null }],
       activeId: id,
     });
     reveal(id);
@@ -119,7 +132,7 @@ export function Dashboard() {
 
   function patchChart(
     id: string,
-    patch: Partial<Pick<Layout["charts"][number], "range" | "mode">>,
+    patch: Partial<Pick<Layout["charts"][number], "range" | "mode" | "versusId">>,
   ) {
     update({
       ...layout,
@@ -141,9 +154,11 @@ export function Dashboard() {
           source={source}
           error={quoteError}
           activeCoinId={active?.coinId ?? null}
+          activeVersusId={active?.versusId ?? null}
           chartCount={layout.charts.length}
           maxCharts={MAX_CHARTS}
           onSelect={selectCoin}
+          onSelectPair={selectPair}
           onOpen={openCoin}
           onAdd={addChart}
           onRetry={() => setQuoteRetry((count) => count + 1)}
@@ -155,7 +170,9 @@ export function Dashboard() {
           <MarketStrip
             quotes={quotes}
             activeCoinId={active?.coinId ?? null}
+            activeVersusId={active?.versusId ?? null}
             onSelect={selectCoin}
+            onSelectPair={selectPair}
           />
           <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-2">
             <p className="text-xs text-muted-foreground">
@@ -190,16 +207,19 @@ export function Dashboard() {
               key={chart.id}
               id={chart.id}
               coinId={chart.coinId}
+              versusId={chart.versusId}
               range={chart.range}
               mode={chart.mode}
               active={chart.id === layout.activeId}
               canClose={layout.charts.length > 1}
               showSelected={layout.charts.length > 1 && chart.id === layout.activeId}
               quote={quoteById.get(chart.coinId) ?? null}
+              versusQuote={chart.versusId ? (quoteById.get(chart.versusId) ?? null) : null}
               onActivate={() => update({ ...layout, activeId: chart.id })}
               onClose={() => closeChart(chart.id)}
               onRange={(range) => patchChart(chart.id, { range })}
               onMode={(mode) => setMode(chart.id, mode)}
+              onVersus={(versusId) => patchChart(chart.id, { versusId })}
             />
           ))}
         </div>

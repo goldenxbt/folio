@@ -61,6 +61,7 @@ export const COINS: readonly Coin[] = [
   { id: "binancecoin", symbol: "BNB", name: "BNB", gecko: "binancecoin", kraken: "BNBUSD", krakenKey: "BNBUSD", coinbase: "BNB-USD", aliases: ["binance"] },
   { id: "ripple", symbol: "XRP", name: "XRP", gecko: "ripple", kraken: "XRPUSD", krakenKey: "XXRPZUSD", coinbase: "XRP-USD", aliases: [] },
   { id: "solana", symbol: "SOL", name: "Solana", gecko: "solana", kraken: "SOLUSD", krakenKey: "SOLUSD", coinbase: "SOL-USD", aliases: [] },
+  { id: "hyperliquid", symbol: "HYPE", name: "Hyperliquid", gecko: "hyperliquid", kraken: "HYPEUSD", krakenKey: "HYPEUSD", coinbase: "HYPE-USD", aliases: ["hype"] },
   { id: "tron", symbol: "TRX", name: "TRON", gecko: "tron", kraken: "TRXUSD", krakenKey: "TRXUSD", coinbase: "TRX-USD", aliases: [] },
   { id: "dogecoin", symbol: "DOGE", name: "Dogecoin", gecko: "dogecoin", kraken: "XDGUSD", krakenKey: "XDGUSD", coinbase: "DOGE-USD", aliases: [] },
   { id: "chainlink", symbol: "LINK", name: "Chainlink", gecko: "chainlink", kraken: "LINKUSD", krakenKey: "LINKUSD", coinbase: "LINK-USD", aliases: [] },
@@ -88,6 +89,15 @@ export function getCoin(id: string): Coin | null {
 export function getRange(id: string): RangeSpec | null {
   return rangeById.get(id as RangeId) ?? null;
 }
+
+export const RATIO_PRESETS = [
+  { baseId: "bitcoin", quoteId: "ethereum" },
+  { baseId: "ethereum", quoteId: "bitcoin" },
+  { baseId: "ethereum", quoteId: "hyperliquid" },
+  { baseId: "bitcoin", quoteId: "hyperliquid" },
+  { baseId: "solana", quoteId: "ethereum" },
+  { baseId: "ethereum", quoteId: "solana" },
+] as const;
 
 export function filterCoins(query: string): Coin[] {
   const needle = query.trim().toLowerCase();

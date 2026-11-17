@@ -245,9 +245,35 @@ export async function getCandles(
 
     const candles = await candlesFromCoinbase(coin, range);
     if (candles.length >= 8) return { source: "coinbase" as const, candles };
-    if (errors.length > 0) {
-      throw new Error("Candle history unavailable");
-    }
     throw new Error("Candle history unavailable");
   });
+}
+
+export function divideCandles(base: Candle[], quote: Candle[]): Candle[] {
+  const quoteByTime = new Map(quote.map((candle) => [candle.time, candle]));
+  const rows: Candle[] = [];
+  for (const bar of base) {
+    const other = quoteByTime.get(bar.time);
+    if (!other) continue;
+    if (other.open <= 0 || other.high <= 0 || other.low <= 0 || other.close <= 0) continue;
+    if (bar.open <= 0 || bar.close <= 0) continue;
+    const open = bar.open / other.open;
+    const close = bar.close / other.close;
+    const high = Math.max(open, close, bar.high / other.low, bar.low / other.high);
+    const low = Math.min(open, close, bar.low / other.high, bar.high / other.low);
+    if (![open, high, low, close].every((value) => Number.isFinite(value) && value > 0)) continue;
+    rows.push({ time: bar.time, open, high, low, close, volume: 0 });
+  }
+  return rows;
+}
+
+export async function getRatioCandles(
+  base: Coin,
+  quote: Coin,
+  range: RangeSpec,
+): Promise<{ source: MarketSource; candles: Candle[] }> {
+  const [left, right] = await Promise.all([getCandles(base, range), getCandles(quote, range)]);
+  const candles = divideCandles(left.candles, right.candles);
+  if (candles.length < 8) throw new Error("Ratio history unavailable");
+  return { source: left.source, candles };
 }

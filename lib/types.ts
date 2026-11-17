@@ -31,6 +31,7 @@ export type QuotesResponse = {
 export type CandlesResponse = {
   coin: string;
   range: string;
+  versus: string | null;
   source: MarketSource;
   interval: string;
   candles: Candle[];

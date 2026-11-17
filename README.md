@@ -4,6 +4,8 @@ A light crypto price chart. The left rail lists the major coins. The main area i
 
 Open up to four charts. Click a coin to change the selected chart. Use the plus control to open that coin in another chart. Switch any chart between candles and a line.
 
+Each chart can also be a ratio. Set “Priced in” to another coin, or pick a preset such as BTC/ETH or ETH/HYPE. The candles are the base coin’s dollar price divided by the quote coin’s dollar price, so ETH/HYPE is how much HYPE one ETH buys. Volume stays on USD charts only.
+
 Quotes come from CoinGecko. Candles come from Kraken, with Coinbase as a backup. No API key is required.
 
 ## Run locally

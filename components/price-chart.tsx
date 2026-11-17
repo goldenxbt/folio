@@ -13,15 +13,17 @@ import {
   type UTCTimestamp,
 } from "lightweight-charts";
 import type { RangeId } from "@/lib/coins";
-import { formatUsd, pricePrecision } from "@/lib/format";
+import { pricePrecision } from "@/lib/format";
 import type { Candle } from "@/lib/types";
 
 type PriceChartProps = {
   candles: Candle[];
   mode: "candle" | "line";
   positive: boolean;
-  coinId: string;
+  fitId: string;
   range: RangeId;
+  showVolume: boolean;
+  formatPrice: (value: number) => string;
   onHover: (candle: Candle | null) => void;
 };
 
@@ -82,8 +84,10 @@ export function PriceChart({
   candles,
   mode,
   positive,
-  coinId,
+  fitId,
   range,
+  showVolume,
+  formatPrice,
   onHover,
 }: PriceChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -91,6 +95,7 @@ export function PriceChart({
   const seriesRef = useRef<SeriesRefs>({ candle: null, area: null, volume: null });
   const candlesRef = useRef<Candle[]>(candles);
   const hoverRef = useRef(onHover);
+  const formatRef = useRef(formatPrice);
   const fitKeyRef = useRef("");
   const seriesKeyRef = useRef("");
 
@@ -99,6 +104,13 @@ export function PriceChart({
   useEffect(() => {
     hoverRef.current = onHover;
   }, [onHover]);
+
+  useEffect(() => {
+    formatRef.current = formatPrice;
+    chartRef.current?.applyOptions({
+      localization: { priceFormatter: (price: number) => formatRef.current(price) },
+    });
+  }, [formatPrice]);
 
   useEffect(() => {
     const element = containerRef.current;
@@ -132,7 +144,7 @@ export function PriceChart({
         },
       },
       localization: {
-        priceFormatter: (price: number) => formatUsd(price),
+        priceFormatter: (price: number) => formatRef.current(price),
       },
     });
 
@@ -169,7 +181,7 @@ export function PriceChart({
     if (!chart) return;
 
     candlesRef.current = candles;
-    const seriesKey = `${mode}:${positive ? "up" : "down"}:${precision}`;
+    const seriesKey = `${mode}:${positive ? "up" : "down"}:${precision}:${showVolume ? "vol" : "flat"}`;
     if (seriesKeyRef.current !== seriesKey) {
       const previous = seriesRef.current;
       if (previous.candle) chart.removeSeries(previous.candle);
@@ -192,17 +204,19 @@ export function PriceChart({
           wickDownColor: DOWN,
           priceFormat,
         });
-        next.volume = chart.addSeries(HistogramSeries, {
-          priceFormat: { type: "volume" },
-          priceScaleId: "volume",
-          priceLineVisible: false,
-          lastValueVisible: false,
-        });
-        chart.priceScale("volume").applyOptions({
-          scaleMargins: { top: 0.8, bottom: 0 },
-        });
+        if (showVolume) {
+          next.volume = chart.addSeries(HistogramSeries, {
+            priceFormat: { type: "volume" },
+            priceScaleId: "volume",
+            priceLineVisible: false,
+            lastValueVisible: false,
+          });
+          chart.priceScale("volume").applyOptions({
+            scaleMargins: { top: 0.8, bottom: 0 },
+          });
+        }
         chart.priceScale("right").applyOptions({
-          scaleMargins: { top: 0.08, bottom: 0.22 },
+          scaleMargins: { top: 0.08, bottom: showVolume ? 0.22 : 0.06 },
         });
       } else {
         const line = positive ? UP : DOWN;
@@ -234,11 +248,11 @@ export function PriceChart({
       chart,
       seriesRef.current,
       candles,
-      `${coinId}:${range}:${mode}`,
+      `${fitId}:${range}:${mode}`,
       fitKeyRef,
       (candle) => hoverRef.current(candle),
     );
-  }, [candles, coinId, mode, positive, precision, range]);
+  }, [candles, fitId, mode, positive, precision, range, showVolume]);
 
   return <div ref={containerRef} className="h-full min-h-[240px] w-full overflow-hidden md:min-h-[280px]" />;
 }

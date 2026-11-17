@@ -5,7 +5,7 @@ import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { filterCoins } from "@/lib/coins";
+import { RATIO_PRESETS, filterCoins, getCoin } from "@/lib/coins";
 import { formatPercent, formatStamp, formatUsd, toneClass } from "@/lib/format";
 import type { MarketSource, Quote } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -16,9 +16,11 @@ type MarketListProps = {
   source: MarketSource | null;
   error: string | null;
   activeCoinId: string | null;
+  activeVersusId: string | null;
   chartCount: number;
   maxCharts: number;
   onSelect: (coinId: string) => void;
+  onSelectPair: (baseId: string, quoteId: string) => void;
   onOpen: (coinId: string) => void;
   onAdd: () => void;
   onRetry: () => void;
@@ -42,15 +44,49 @@ function useOrderedCoins(quotes: Quote[] | null, query: string) {
   }, [quotes, query]);
 }
 
+function RatioPresets({
+  activeCoinId,
+  activeVersusId,
+  onSelectPair,
+}: {
+  activeCoinId: string | null;
+  activeVersusId: string | null;
+  onSelectPair: (baseId: string, quoteId: string) => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {RATIO_PRESETS.map((preset) => {
+        const base = getCoin(preset.baseId);
+        const quote = getCoin(preset.quoteId);
+        if (!base || !quote) return null;
+        const selected = activeCoinId === preset.baseId && activeVersusId === preset.quoteId;
+        return (
+          <Button
+            key={`${preset.baseId}-${preset.quoteId}`}
+            size="xs"
+            variant={selected ? "default" : "outline"}
+            aria-pressed={selected}
+            onClick={() => onSelectPair(preset.baseId, preset.quoteId)}
+          >
+            {base.symbol}/{quote.symbol}
+          </Button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function MarketSidebar({
   quotes,
   updatedAt,
   source,
   error,
   activeCoinId,
+  activeVersusId,
   chartCount,
   maxCharts,
   onSelect,
+  onSelectPair,
   onOpen,
   onAdd,
   onRetry,
@@ -65,7 +101,7 @@ export function MarketSidebar({
         <p className="text-[11px] font-medium tracking-[0.18em] text-muted-foreground">MARKETS</p>
         <h1 className="mt-1 text-[1.7rem] leading-none font-semibold tracking-tight">Folio</h1>
         <p className="mt-2 text-sm leading-5 text-muted-foreground">
-          USD price charts for the major coins. Click a market to fill the selected chart.
+          USD charts, or one coin priced in another. Click a market to change the base.
         </p>
       </div>
 
@@ -143,6 +179,21 @@ export function MarketSidebar({
       </ScrollArea>
 
       <div className="space-y-3 border-t border-border px-4 py-4">
+        <div>
+          <p className="text-[11px] font-medium tracking-[0.14em] text-muted-foreground uppercase">
+            Ratios
+          </p>
+          <div className="mt-2">
+            <RatioPresets
+              activeCoinId={activeCoinId}
+              activeVersusId={activeVersusId}
+              onSelectPair={onSelectPair}
+            />
+          </div>
+          <p className="mt-2 text-[11px] leading-4 text-muted-foreground">
+            ETH/HYPE is how much HYPE one ETH buys. The quote menu on a chart can pair any two.
+          </p>
+        </div>
         <Button className="w-full" onClick={onAdd} disabled={atMax}>
           <Plus />
           Add chart
@@ -179,11 +230,15 @@ export function MarketSidebar({
 export function MarketStrip({
   quotes,
   activeCoinId,
+  activeVersusId,
   onSelect,
+  onSelectPair,
 }: {
   quotes: Quote[] | null;
   activeCoinId: string | null;
+  activeVersusId: string | null;
   onSelect: (coinId: string) => void;
+  onSelectPair: (baseId: string, quoteId: string) => void;
 }) {
   const [query, setQuery] = useState("");
   const { coins, quoteById } = useOrderedCoins(quotes, query);
@@ -235,6 +290,13 @@ export function MarketStrip({
             );
           })
         )}
+      </div>
+      <div className="flex gap-1.5 overflow-x-auto px-4 pb-3">
+        <RatioPresets
+          activeCoinId={activeCoinId}
+          activeVersusId={activeVersusId}
+          onSelectPair={onSelectPair}
+        />
       </div>
     </div>
   );
