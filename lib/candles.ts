@@ -41,6 +41,9 @@ export function applyTrade(
 
   const bucket = Math.floor(tradeSec / step) * step;
   if (bucket < last.time) return candles;
+  // A trade stamped far past the last loaded bar would open a hole in the
+  // time scale. Keep the series continuous until the next history poll.
+  if (bucket > last.time + step) return candles;
   if (bucket === last.time) {
     if (price === last.close && price <= last.high && price >= last.low) return candles;
     const next = candles.slice();
