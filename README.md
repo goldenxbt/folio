@@ -1,6 +1,6 @@
 # Folio
 
-A light crypto price chart. The left rail lists the major coins. The main area is a candlestick chart in the style of a CoinDesk price page: a large last price, the move over the selected span, 24h high and low, volume, and market cap. Span sets how much of the chart is on screen (1H through 5Y). Candle sets the size of each bar (1m, 5m, 15m, 1H, 4H, 1D, 1W). A chart you add opens on 1-minute candles across 12 hours. Zoom out and older candles load into the empty space.
+A light crypto price chart. The left rail lists the major coins. The main area is a candlestick chart in the style of a CoinDesk price page: a large last price, the move over the selected span, 24h high and low, volume, and market cap. Span sets how much of the chart is on screen (1H through 5Y). Candle sets the size of each bar (1m, 5m, 15m, 1H, 4H, 1D, 1W). A chart opens on 1-minute candles across 1 hour, so the first load stays small. Zoom out and older candles load into the empty space. When the candle and span options run past the edge, the arrows at either end of that row move through the rest, and the wheel does the same while the pointer is over them.
 
 Open up to four charts. Click a coin to change the selected chart. Use the plus control to open that coin in another chart. A dollar chart or a pair can only be open once, so the plus control is disabled for a coin already on screen, and choosing a pair that is already open jumps to that chart. Switch any chart between candles and a line.
 

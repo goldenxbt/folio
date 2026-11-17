@@ -1,8 +1,8 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { applyTrade, mergeCandles } from "@/lib/candles";
 import {
@@ -128,6 +128,126 @@ function parseCandles(value: unknown): Candle[] | null {
     });
   }
   return candles;
+}
+
+const choiceClass =
+  "shrink-0 border-b-2 pb-px text-sm leading-none hover:text-foreground";
+
+function TextChoice({
+  checked,
+  label,
+  onSelect,
+}: {
+  checked: boolean;
+  label: string;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={checked}
+      className={cn(
+        choiceClass,
+        checked ? "border-foreground text-foreground" : "border-transparent text-muted-foreground",
+      )}
+      onClick={(event) => {
+        event.stopPropagation();
+        const row = event.currentTarget.closest<HTMLElement>("[data-choice-row]");
+        if (row) {
+          const item = event.currentTarget.getBoundingClientRect();
+          const box = row.getBoundingClientRect();
+          if (item.left < box.left) row.scrollLeft -= box.left - item.left;
+          else if (item.right > box.right) row.scrollLeft += item.right - box.right;
+        }
+        onSelect();
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+const groupLabelClass =
+  "shrink-0 border-b-2 border-transparent pb-px text-sm leading-none font-medium tracking-[0.14em] text-muted-foreground uppercase";
+
+function ChoiceRow({ children }: { children: ReactNode }) {
+  const scroller = useRef<HTMLDivElement>(null);
+  const [edges, setEdges] = useState({ left: false, right: false });
+
+  useEffect(() => {
+    const node = scroller.current;
+    if (!node) return;
+    const measure = () => {
+      const max = node.scrollWidth - node.clientWidth;
+      const next = { left: node.scrollLeft > 1, right: max - node.scrollLeft > 1 };
+      setEdges((current) =>
+        current.left === next.left && current.right === next.right ? current : next,
+      );
+    };
+    measure();
+    node.addEventListener("scroll", measure, { passive: true });
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    const onWheel = (event: WheelEvent) => {
+      if (node.scrollWidth <= node.clientWidth) return;
+      if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+      event.preventDefault();
+      node.scrollLeft += event.deltaY;
+    };
+    node.addEventListener("wheel", onWheel, { passive: false });
+    return () => {
+      node.removeEventListener("scroll", measure);
+      node.removeEventListener("wheel", onWheel);
+      observer.disconnect();
+    };
+  }, []);
+
+  const overflow = edges.left || edges.right;
+
+  function scrollBy(distance: number) {
+    scroller.current?.scrollBy({ left: distance, behavior: "smooth" });
+  }
+
+  return (
+    <div className="flex min-w-0 flex-1 items-center gap-1">
+      {overflow ? (
+        <button
+          type="button"
+          aria-label="Earlier options"
+          disabled={!edges.left}
+          className="inline-flex size-5 shrink-0 items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-30"
+          onClick={(event) => {
+            event.stopPropagation();
+            scrollBy(-160);
+          }}
+        >
+          <ChevronLeft className="size-3.5" />
+        </button>
+      ) : null}
+      <div
+        ref={scroller}
+        data-choice-row=""
+        className="flex min-w-0 flex-1 items-baseline gap-3 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {children}
+      </div>
+      {overflow ? (
+        <button
+          type="button"
+          aria-label="Later options"
+          disabled={!edges.right}
+          className="inline-flex size-5 shrink-0 items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-30"
+          onClick={(event) => {
+            event.stopPropagation();
+            scrollBy(160);
+          }}
+        >
+          <ChevronRight className="size-3.5" />
+        </button>
+      ) : null}
+    </div>
+  );
 }
 
 function Stat({ label, value }: { label: string; value: string }) {
@@ -471,96 +591,53 @@ export function ChartPanel({
         )}
       </dl>
 
-      <div className="mt-4 flex shrink-0 min-w-0 items-center gap-4 px-4 md:px-5">
-        <div className="flex min-w-0 flex-1 items-center gap-3 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <span className="shrink-0 text-[11px] font-medium tracking-[0.14em] text-muted-foreground uppercase">
-            Candle
-          </span>
+      <div className="mt-4 flex shrink-0 min-w-0 items-center gap-3 px-4 md:px-5">
+        <ChoiceRow>
+          <span className={groupLabelClass}>Candle</span>
           <div
             role="radiogroup"
             aria-label={`${coin.name} candle size`}
-            className="flex shrink-0 gap-3"
+            className="flex shrink-0 items-baseline gap-3"
           >
             {INTERVALS.map((item) => (
-              <Button
+              <TextChoice
                 key={item.id}
-                variant="ghost"
-                size="xs"
-                role="radio"
-                aria-checked={interval === item.id}
-                className={cn(
-                  "h-auto shrink-0 rounded-none px-0 text-sm hover:bg-transparent",
-                  interval === item.id
-                    ? "text-foreground underline decoration-2 underline-offset-[7px]"
-                    : "text-muted-foreground",
-                )}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onInterval(item.id);
-                }}
-              >
-                {item.label}
-              </Button>
+                checked={interval === item.id}
+                label={item.label}
+                onSelect={() => onInterval(item.id)}
+              />
             ))}
           </div>
-          <div aria-hidden="true" className="h-4 w-px shrink-0 bg-border" />
-          <span className="shrink-0 text-[11px] font-medium tracking-[0.14em] text-muted-foreground uppercase">
-            Span
-          </span>
+          <div aria-hidden="true" className="h-3.5 w-px shrink-0 self-center bg-border" />
+          <span className={groupLabelClass}>Span</span>
           <div
             role="radiogroup"
             aria-label={`${coin.name} chart span`}
-            className="flex shrink-0 gap-3"
+            className="flex shrink-0 items-baseline gap-3"
           >
             {SPANS.map((item) => (
-              <Button
+              <TextChoice
                 key={item.id}
-                variant="ghost"
-                size="xs"
-                role="radio"
-                aria-checked={span === item.id}
-                className={cn(
-                  "h-auto shrink-0 rounded-none px-0 text-sm hover:bg-transparent",
-                  span === item.id
-                    ? "text-foreground underline decoration-2 underline-offset-[7px]"
-                    : "text-muted-foreground",
-                )}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onSpan(item.id);
-                }}
-              >
-                {item.label}
-              </Button>
+                checked={span === item.id}
+                label={item.label}
+                onSelect={() => onSpan(item.id)}
+              />
             ))}
           </div>
-        </div>
-        <div role="radiogroup" aria-label={`${coin.name} chart type`} className="flex shrink-0 gap-4">
+        </ChoiceRow>
+        <div role="radiogroup" aria-label={`${coin.name} chart type`} className="ml-auto flex shrink-0 gap-4">
           {(
             [
               ["candle", "Candle"],
               ["line", "Line"],
             ] as const
           ).map(([value, label]) => (
-            <Button
+            <TextChoice
               key={value}
-              variant="ghost"
-              size="xs"
-              role="radio"
-              aria-checked={mode === value}
-              className={cn(
-                "h-auto rounded-none px-0 text-sm hover:bg-transparent",
-                mode === value
-                  ? "text-foreground underline decoration-2 underline-offset-[7px]"
-                  : "text-muted-foreground",
-              )}
-              onClick={(event) => {
-                event.stopPropagation();
-                onMode(value);
-              }}
-            >
-              {label}
-            </Button>
+              checked={mode === value}
+              label={label}
+              onSelect={() => onMode(value)}
+            />
           ))}
         </div>
       </div>

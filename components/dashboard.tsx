@@ -176,7 +176,7 @@ export function Dashboard() {
       ...layout,
       charts: [
         ...layout.charts,
-        { id, coinId, interval: "1m", span: "12H", mode: "candle", versusId: null },
+        { id, coinId, interval: "1m", span: "1H", mode: "candle", versusId: null },
       ],
       activeId: id,
     });

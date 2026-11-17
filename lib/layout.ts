@@ -37,8 +37,8 @@ export function defaultLayout(): Layout {
       {
         id: "btc",
         coinId: "bitcoin",
-        interval: "15m",
-        span: "1D",
+        interval: "1m",
+        span: "1H",
         mode: "candle",
         versusId: null,
       },
@@ -94,6 +94,17 @@ export function sanitizeLayout(value: unknown): Layout {
   }
 
   if (charts.length === 0) return fallback;
+  if (
+    charts.length === 1 &&
+    charts[0].id === "btc" &&
+    charts[0].coinId === "bitcoin" &&
+    charts[0].interval === "15m" &&
+    charts[0].span === "1D" &&
+    charts[0].mode === "candle" &&
+    charts[0].versusId === null
+  ) {
+    charts[0] = { ...charts[0], interval: "1m", span: "1H" };
+  }
   const activeId = charts.some((chart) => chart.id === raw.activeId)
     ? (raw.activeId as string)
     : charts[0].id;
