@@ -359,6 +359,7 @@ export function Dashboard() {
               mode={chart.mode}
               height={previewHeight ?? layout.panelHeight}
               fillsScreen={layout.charts.length <= 2}
+              compact={layout.charts.length >= 3}
               active={chart.id === layout.activeId}
               canClose={layout.charts.length > 1}
               showSelected={layout.charts.length > 1 && chart.id === layout.activeId}

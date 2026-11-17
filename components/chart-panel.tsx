@@ -59,6 +59,7 @@ type ChartPanelProps = {
   mode: ChartMode;
   height: number | null;
   fillsScreen: boolean;
+  compact: boolean;
   active: boolean;
   canClose: boolean;
   showSelected: boolean;
@@ -250,13 +251,13 @@ function ChoiceRow({ children }: { children: ReactNode }) {
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value, tight }: { label: string; value: string; tight?: boolean }) {
   return (
     <div>
       <dt className="text-[11px] font-medium tracking-[0.14em] text-muted-foreground uppercase">
         {label}
       </dt>
-      <dd className="mt-1 text-sm font-medium tabular-nums">{value}</dd>
+      <dd className={cn("text-sm font-medium tabular-nums", tight ? "mt-0.5" : "mt-1")}>{value}</dd>
     </div>
   );
 }
@@ -270,6 +271,7 @@ export function ChartPanel({
   mode,
   height,
   fillsScreen,
+  compact,
   active,
   canClose,
   showSelected,
@@ -457,6 +459,45 @@ export function ChartPanel({
   const title = versus ? `${coin.symbol}/${versus.symbol}` : coin.name;
   const occupied = new Set(occupiedKeys);
   const resolved = height;
+  const statistics = versus ? (
+    <>
+      <Stat
+        tight={compact}
+        label={`${spanSpec?.label ?? span} high`}
+        value={extremes ? formatRatio(extremes.high) : "—"}
+      />
+      <Stat
+        tight={compact}
+        label={`${spanSpec?.label ?? span} low`}
+        value={extremes ? formatRatio(extremes.low) : "—"}
+      />
+      <Stat
+        tight={compact}
+        label={coin.symbol}
+        value={quote?.price == null ? "—" : formatUsd(quote.price)}
+      />
+      <Stat
+        tight={compact}
+        label={versus.symbol}
+        value={versusQuote?.price == null ? "—" : formatUsd(versusQuote.price)}
+      />
+    </>
+  ) : (
+    <>
+      <Stat tight={compact} label="24h high" value={quote?.high24h == null ? "—" : formatUsd(quote.high24h)} />
+      <Stat tight={compact} label="24h low" value={quote?.low24h == null ? "—" : formatUsd(quote.low24h)} />
+      <Stat
+        tight={compact}
+        label="Volume"
+        value={quote?.volume24h == null ? "—" : formatCompactUsd(quote.volume24h)}
+      />
+      <Stat
+        tight={compact}
+        label="Mkt cap"
+        value={quote?.marketCap == null ? "—" : formatCompactUsd(quote.marketCap)}
+      />
+    </>
+  );
 
   function resizeFrom(clientY: number) {
     const origin = dragOrigin.current;
@@ -480,13 +521,16 @@ export function ChartPanel({
     >
       <div
         className={cn(
-          "flex shrink-0 items-start justify-between gap-3 px-4 pt-4 md:px-5",
+          "flex shrink-0 items-start justify-between gap-3 px-4 md:px-5",
+          compact ? "pt-3" : "pt-4",
           marketsInset && "md:pl-14",
         )}
       >
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-            <h2 className="truncate text-xl font-semibold tracking-tight">{title}</h2>
+            <h2 className={cn("truncate font-semibold tracking-tight", compact ? "text-lg" : "text-xl")}>
+              {title}
+            </h2>
             <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
               Priced in
               <select
@@ -520,25 +564,39 @@ export function ChartPanel({
               </span>
             ) : null}
           </div>
-          <p className="mt-2 text-[2rem] leading-none font-medium tracking-tight tabular-nums md:text-[2.5rem]">
-            {price == null ? "—" : formatValue(price)}
-          </p>
-          <p className={cn("mt-2 text-sm tabular-nums", toneClass(move?.percent))}>
-            {move ? (
-              <>
-                {formatPercent(move.percent)}
-                <span className="mx-1.5 text-muted-foreground">·</span>
-                {formatSigned(move.usd)}
-              </>
-            ) : (
-              "Waiting for the first candles"
-            )}
-            <span className="ml-2 text-muted-foreground">
-              {versus
-                ? `${versus.symbol} per 1 ${coin.symbol} · ${spanSpec?.label ?? span}`
-                : (spanSpec?.label ?? span)}
-            </span>
-          </p>
+          <div className={cn("@container flex gap-4", compact ? "mt-1.5 items-center justify-between" : "mt-2 flex-col")}>
+            <div className="min-w-0">
+              <p
+                className={cn(
+                  "leading-none font-medium tracking-tight tabular-nums",
+                  compact ? "text-[1.75rem]" : "text-[2rem] md:text-[2.5rem]",
+                )}
+              >
+                {price == null ? "—" : formatValue(price)}
+              </p>
+              <p className={cn("text-sm tabular-nums", compact ? "mt-1.5" : "mt-2", toneClass(move?.percent))}>
+                {move ? (
+                  <>
+                    {formatPercent(move.percent)}
+                    <span className="mx-1.5 text-muted-foreground">·</span>
+                    {formatSigned(move.usd)}
+                  </>
+                ) : (
+                  "Waiting for the first candles"
+                )}
+                <span className="ml-2 text-muted-foreground">
+                  {versus
+                    ? `${versus.symbol} per 1 ${coin.symbol} · ${spanSpec?.label ?? span}`
+                    : (spanSpec?.label ?? span)}
+                </span>
+              </p>
+            </div>
+            {compact ? (
+              <dl className="grid max-w-[60%] shrink-0 grid-cols-2 gap-x-3 gap-y-1.5 text-right @[28rem]:grid-cols-4">
+                {statistics}
+              </dl>
+            ) : null}
+          </div>
         </div>
         {canClose ? (
           <Button
@@ -555,43 +613,18 @@ export function ChartPanel({
         ) : null}
       </div>
 
-      <dl className="mt-4 grid shrink-0 grid-cols-2 gap-x-4 gap-y-3 px-4 sm:grid-cols-4 md:px-5">
-        {versus ? (
-          <>
-            <Stat
-              label={`${spanSpec?.label ?? span} high`}
-              value={extremes ? formatRatio(extremes.high) : "—"}
-            />
-            <Stat
-              label={`${spanSpec?.label ?? span} low`}
-              value={extremes ? formatRatio(extremes.low) : "—"}
-            />
-            <Stat
-              label={coin.symbol}
-              value={quote?.price == null ? "—" : formatUsd(quote.price)}
-            />
-            <Stat
-              label={versus.symbol}
-              value={versusQuote?.price == null ? "—" : formatUsd(versusQuote.price)}
-            />
-          </>
-        ) : (
-          <>
-            <Stat label="24h high" value={quote?.high24h == null ? "—" : formatUsd(quote.high24h)} />
-            <Stat label="24h low" value={quote?.low24h == null ? "—" : formatUsd(quote.low24h)} />
-            <Stat
-              label="Volume"
-              value={quote?.volume24h == null ? "—" : formatCompactUsd(quote.volume24h)}
-            />
-            <Stat
-              label="Mkt cap"
-              value={quote?.marketCap == null ? "—" : formatCompactUsd(quote.marketCap)}
-            />
-          </>
-        )}
-      </dl>
+      {compact ? null : (
+        <dl className="mt-4 grid shrink-0 grid-cols-2 gap-x-4 gap-y-3 px-4 sm:grid-cols-4 md:px-5">
+          {statistics}
+        </dl>
+      )}
 
-      <div className="mt-4 flex shrink-0 min-w-0 items-center gap-3 px-4 md:px-5">
+      <div
+        className={cn(
+          "flex shrink-0 min-w-0 items-center gap-3 px-4 md:px-5",
+          compact ? "mt-2" : "mt-4",
+        )}
+      >
         <ChoiceRow>
           <span className={groupLabelClass}>Candle</span>
           <div
@@ -642,7 +675,7 @@ export function ChartPanel({
         </div>
       </div>
 
-      <div className="mt-3 min-h-0 flex-1 px-2">
+      <div className={cn("min-h-0 flex-1 px-2", compact ? "mt-2" : "mt-3")}>
         {state.loading ? (
           <div
             role="status"
