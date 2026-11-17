@@ -146,8 +146,7 @@ export function Dashboard() {
           if (
             previous &&
             previous.price === tick.price &&
-            previous.tradedAt === tick.tradedAt &&
-            previous.priceFromTrade === tick.priceFromTrade
+            previous.tradedAt === tick.tradedAt
           ) {
             continue;
           }
