@@ -445,15 +445,48 @@ export function ChartPanel({
         )}
       </dl>
 
-      <div className="mt-4 flex flex-col gap-2 px-4 md:px-5">
-        <div className="flex min-w-0 items-center gap-3">
-          <span className="w-14 shrink-0 text-[11px] font-medium tracking-[0.14em] text-muted-foreground uppercase">
+      <div className="mt-4 flex min-w-0 items-center gap-4 px-4 md:px-5">
+        <div className="flex min-w-0 flex-1 items-center gap-3 overflow-x-auto">
+          <span className="shrink-0 text-[11px] font-medium tracking-[0.14em] text-muted-foreground uppercase">
+            Candle
+          </span>
+          <div
+            role="radiogroup"
+            aria-label={`${coin.name} candle size`}
+            className="flex shrink-0 gap-3"
+          >
+            {INTERVALS.map((item) => (
+              <Button
+                key={item.id}
+                variant="ghost"
+                size="xs"
+                role="radio"
+                aria-checked={interval === item.id}
+                className={cn(
+                  "h-auto shrink-0 rounded-none px-0 text-sm hover:bg-transparent",
+                  interval === item.id
+                    ? "text-foreground underline decoration-2 underline-offset-[7px]"
+                    : "text-muted-foreground",
+                )}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onInterval(item.id);
+                }}
+              >
+                {item.label}
+              </Button>
+            ))}
+          </div>
+          <span aria-hidden="true" className="shrink-0 px-0.5 text-muted-foreground">
+            |
+          </span>
+          <span className="shrink-0 text-[11px] font-medium tracking-[0.14em] text-muted-foreground uppercase">
             Span
           </span>
           <div
             role="radiogroup"
             aria-label={`${coin.name} chart span`}
-            className="flex min-w-0 flex-1 gap-3 overflow-x-auto"
+            className="flex shrink-0 gap-3"
           >
             {SPANS.map((item) => (
               <Button
@@ -478,40 +511,6 @@ export function ChartPanel({
             ))}
           </div>
         </div>
-        <div className="flex min-w-0 items-center gap-3">
-          <span className="w-14 shrink-0 text-[11px] font-medium tracking-[0.14em] text-muted-foreground uppercase">
-            Candle
-          </span>
-          <div
-            role="radiogroup"
-            aria-label={`${coin.name} candle size`}
-            className="flex min-w-0 flex-1 gap-3 overflow-x-auto"
-          >
-            {INTERVALS.map((item) => (
-              <Button
-                key={item.id}
-                variant="ghost"
-                size="xs"
-                role="radio"
-                aria-checked={interval === item.id}
-                className={cn(
-                  "h-auto shrink-0 rounded-none px-0 text-sm hover:bg-transparent",
-                  interval === item.id
-                    ? "text-foreground underline decoration-2 underline-offset-[7px]"
-                    : "text-muted-foreground",
-                )}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onInterval(item.id);
-                }}
-              >
-                {item.label}
-              </Button>
-            ))}
-          </div>
-        </div>
-      </div>
-      <div className="mt-1 flex justify-end px-4 md:px-5">
         <div role="radiogroup" aria-label={`${coin.name} chart type`} className="flex shrink-0 gap-4">
           {(
             [
