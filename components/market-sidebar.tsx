@@ -36,6 +36,7 @@ const SOURCE_NAME: Record<MarketSource, string> = {
   coingecko: "CoinGecko",
   kraken: "Kraken",
   coinbase: "Coinbase",
+  binance: "Binance",
 };
 
 function useOrderedCoins(quotes: Quote[] | null, query: string) {

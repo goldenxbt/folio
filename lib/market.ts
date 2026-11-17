@@ -6,6 +6,7 @@ const ALLOWED_HOSTS = new Set([
   "api.kraken.com",
   "api.exchange.coinbase.com",
   "api.coingecko.com",
+  "data-api.binance.vision",
 ]);
 
 type CacheEntry<T> = { exp: number; data: T };
@@ -35,16 +36,18 @@ async function cached<T>(key: string, ttlMs: number, load: () => Promise<T>): Pr
   return request;
 }
 
-async function getJson(url: string): Promise<unknown> {
+async function readMarket(url: string, init?: RequestInit): Promise<unknown> {
   const host = new URL(url).hostname;
   if (!ALLOWED_HOSTS.has(host)) {
     throw new Error("Unexpected market host");
   }
 
   const response = await fetch(url, {
+    ...init,
     headers: {
       accept: "application/json",
       "user-agent": "CandleFolio/1.0",
+      ...(init?.headers ?? {}),
     },
     cache: "no-store",
     signal: AbortSignal.timeout(8_000),
@@ -55,6 +58,10 @@ async function getJson(url: string): Promise<unknown> {
   }
 
   return response.json();
+}
+
+async function getJson(url: string): Promise<unknown> {
+  return readMarket(url);
 }
 
 function asNumber(value: unknown): number | null {
@@ -172,6 +179,18 @@ function normalizeCandles(
 
 const COINBASE_PAGE = 300;
 const MAX_OLDER_PAGES = 6;
+const HISTORY_PAGE = 1_000;
+const MAX_HISTORY_PAGES = 3;
+
+const BINANCE_INTERVAL: Record<IntervalSpec["id"], string> = {
+  "1m": "1m",
+  "5m": "5m",
+  "15m": "15m",
+  "1H": "1h",
+  "4H": "4h",
+  "1D": "1d",
+  "1W": "1w",
+};
 
 async function candlesFromKraken(coin: Coin, interval: IntervalSpec): Promise<Candle[]> {
   return cached(`kraken-ohlc:${coin.id}:${interval.id}`, 15_000, () => krakenOhlc(coin, interval));
@@ -261,12 +280,83 @@ async function coinbaseHistory(
   return aggregateCandles(merged, interval.seconds);
 }
 
+async function pageBackward(
+  step: number,
+  start: number,
+  end: number,
+  load: (pageStart: number, pageEnd: number) => Promise<Candle[]>,
+): Promise<Candle[]> {
+  const raw: Candle[] = [];
+  let cursor = end;
+  for (let page = 0; page < MAX_HISTORY_PAGES && cursor > start; page += 1) {
+    const pageStart = Math.max(start, cursor - step * HISTORY_PAGE);
+    const rows = await load(pageStart, cursor);
+    raw.push(...rows);
+    if (rows.length === 0) break;
+    const oldest = rows.reduce((min, candle) => Math.min(min, candle.time), cursor);
+    if (oldest >= cursor) break;
+    cursor = oldest;
+  }
+  return mergeCandles([], raw).filter((candle) => candle.time >= start && candle.time < end);
+}
+
+async function binancePage(
+  coin: Coin,
+  apiInterval: string,
+  start: number,
+  end: number,
+): Promise<Candle[]> {
+  const payload = await getJson(
+    `https://data-api.binance.vision/api/v3/klines?symbol=${coin.symbol}USDT&interval=${apiInterval}&startTime=${start * 1000}&endTime=${end * 1000 - 1}&limit=${HISTORY_PAGE}`,
+  );
+  if (!Array.isArray(payload)) throw new Error("Unexpected Binance payload");
+  return normalizeCandles(
+    payload.map((row) => {
+      const values = Array.isArray(row) ? row : [];
+      const opened = asNumber(values[0]);
+      return {
+        time: opened == null ? Number.NaN : Math.floor(opened / 1000),
+        open: asNumber(values[1]) ?? Number.NaN,
+        high: asNumber(values[2]) ?? Number.NaN,
+        low: asNumber(values[3]) ?? Number.NaN,
+        close: asNumber(values[4]) ?? Number.NaN,
+        volume: asNumber(values[5]) ?? 0,
+      };
+    }),
+  );
+}
+
+async function binanceHistory(
+  coin: Coin,
+  interval: IntervalSpec,
+  start: number,
+  end: number,
+): Promise<Candle[]> {
+  return pageBackward(interval.seconds, start, end, (pageStart, pageEnd) =>
+    binancePage(coin, BINANCE_INTERVAL[interval.id], pageStart, pageEnd),
+  );
+}
+
 async function loadCandles(
   coin: Coin,
   interval: IntervalSpec,
   earliest: number,
   before: number | null,
 ): Promise<{ source: MarketSource; candles: Candle[] }> {
+  const step = interval.seconds;
+  const now = Math.floor(Date.now() / 1000);
+  const end = before ?? now + 1;
+  const start = before == null ? earliest : Math.max(0, before - step * HISTORY_PAGE);
+  try {
+    const candles = await binanceHistory(coin, interval, start, end);
+    const minimum = before == null ? 8 : 1;
+    if (candles.length >= minimum) {
+      return { source: "binance", candles: fillQuietMinutes(candles, step) };
+    }
+  } catch {
+    // Kraken and Coinbase remain available when Binance is down.
+  }
+
   let recent: Candle[] = [];
   try {
     recent = await candlesFromKraken(coin, interval);
@@ -274,7 +364,6 @@ async function loadCandles(
     recent = [];
   }
 
-  const step = interval.seconds;
   if (before != null) {
     const olderRecent = recent.filter((candle) => candle.time < before);
     if (olderRecent.length > 0) return { source: "kraken", candles: fillQuietMinutes(olderRecent, step) };

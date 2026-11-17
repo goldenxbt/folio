@@ -21,7 +21,7 @@ export type Quote = {
   tradedAt?: number;
 };
 
-export type MarketSource = "coingecko" | "kraken" | "coinbase";
+export type MarketSource = "coingecko" | "kraken" | "coinbase" | "binance";
 
 export type QuotesResponse = {
   updatedAt: number;

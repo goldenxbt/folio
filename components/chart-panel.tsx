@@ -48,6 +48,7 @@ const SOURCE_NAME: Record<MarketSource, string> = {
   kraken: "Kraken",
   coinbase: "Coinbase",
   coingecko: "CoinGecko",
+  binance: "Binance",
 };
 
 type ChartPanelProps = {
