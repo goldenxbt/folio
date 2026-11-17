@@ -73,7 +73,6 @@ export function Dashboard() {
   const [source, setSource] = useState<MarketSource | null>(null);
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [quoteRetry, setQuoteRetry] = useState(0);
-  const [live, setLive] = useState(false);
   const [previewHeight, setPreviewHeight] = useState<number | null>(null);
   const [ticks, setTicks] = useState<Map<string, LiveTick>>(() => new Map());
   const chartListRef = useRef<HTMLDivElement>(null);
@@ -133,7 +132,6 @@ export function Dashboard() {
   }, [openCoinIds]);
 
   useEffect(() => {
-    let staleTimer = 0;
     const ticker = subscribeTicker((incoming) => {
       const allowed = openCoinIdsRef.current;
       setTicks((current) => {
@@ -158,15 +156,10 @@ export function Dashboard() {
         }
         return changed ? next : current;
       });
-      if (!incoming.some((tick) => allowed.includes(tick.id))) return;
-      setLive(true);
-      window.clearTimeout(staleTimer);
-      staleTimer = window.setTimeout(() => setLive(false), 15_000);
     });
     tickerRef.current = ticker;
     ticker.setCoins(openCoinIdsRef.current);
     return () => {
-      window.clearTimeout(staleTimer);
       ticker.close();
       if (tickerRef.current === ticker) tickerRef.current = null;
     };
@@ -351,7 +344,6 @@ export function Dashboard() {
             updatedAt={updatedAt}
             source={source}
             error={quoteError}
-            live={live}
             activeCoinId={active?.coinId ?? null}
             activeVersusId={active?.versusId ?? null}
             chartCount={layout.charts.length}

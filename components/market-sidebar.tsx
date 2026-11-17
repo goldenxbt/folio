@@ -16,7 +16,6 @@ type MarketListProps = {
   updatedAt: number | null;
   source: MarketSource | null;
   error: string | null;
-  live: boolean;
   activeCoinId: string | null;
   activeVersusId: string | null;
   chartCount: number;
@@ -88,7 +87,6 @@ export function MarketSidebar({
   updatedAt,
   source,
   error,
-  live,
   activeCoinId,
   activeVersusId,
   chartCount,
@@ -246,7 +244,7 @@ export function MarketSidebar({
           </div>
         ) : (
           <p className="text-[11px] leading-4 text-muted-foreground">
-            {live ? "Live" : updatedAt ? `Updated ${formatStamp(updatedAt)}` : "Loading quotes"}
+            {updatedAt ? `Updated ${formatStamp(updatedAt)}` : "Loading quotes"}
             {source ? ` · ${SOURCE_NAME[source]}` : ""}
           </p>
         )}
