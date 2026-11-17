@@ -54,6 +54,7 @@ type ChartPanelProps = {
   active: boolean;
   canClose: boolean;
   showSelected: boolean;
+  marketsInset: boolean;
   quote: Quote | null;
   versusQuote: Quote | null;
   onActivate: () => void;
@@ -140,6 +141,7 @@ export function ChartPanel({
   active,
   canClose,
   showSelected,
+  marketsInset,
   quote,
   versusQuote,
   onActivate,
@@ -330,7 +332,12 @@ export function ChartPanel({
         active && "shadow-[inset_0_2px_0_var(--foreground)]",
       )}
     >
-      <div className="flex items-start justify-between gap-3 px-4 pt-4 md:px-5">
+      <div
+        className={cn(
+          "flex items-start justify-between gap-3 px-4 pt-4 md:px-5",
+          marketsInset && "md:pl-14",
+        )}
+      >
         <div className="min-w-0">
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
             <h2 className="truncate text-xl font-semibold tracking-tight">{title}</h2>

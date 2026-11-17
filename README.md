@@ -8,7 +8,7 @@ Each chart can also be a ratio. Set “Priced in” to another coin, or pick a p
 
 Quotes start from CoinGecko, then each trade from Kraken moves the last price and the current candle. Candle history comes from Kraken, and older bars come from Coinbase when you zoom past what Kraken returns. No API key is required.
 
-The open charts, the selected coin, each span and candle size, candle or line, any ratio, and whether the market list is hidden are saved in this browser. A refresh restores that layout. The light or dark theme is saved the same way. Use Dark in the header to switch, and Hide to collapse the market list.
+The open charts, the selected coin, each span and candle size, candle or line, any ratio, and whether the market list is hidden are saved in this browser. A refresh restores that layout. The light or dark theme is saved the same way. Use Dark in the header to switch, and Hide to collapse the market list. A small icon at the corner of the chart opens it again.
 
 ## Run locally
 

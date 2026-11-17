@@ -272,20 +272,19 @@ export function Dashboard() {
         />
       </aside>
 
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
         {layout.sidebarOpen ? null : (
-          <div className="hidden border-b border-border px-3 py-2 md:block">
-            <Button
-              variant="outline"
-              size="sm"
-              aria-expanded={false}
-              aria-controls="market-sidebar"
-              onClick={() => setSidebar(true)}
-            >
-              <PanelLeft />
-              Markets
-            </Button>
-          </div>
+          <Button
+            variant="outline"
+            size="icon-sm"
+            className="absolute top-3.5 left-3 z-20 hidden bg-background md:inline-flex"
+            aria-label="Show markets"
+            aria-expanded={false}
+            aria-controls="market-sidebar"
+            onClick={() => setSidebar(true)}
+          >
+            <PanelLeft />
+          </Button>
         )}
 
         <div className="md:hidden">
@@ -304,12 +303,12 @@ export function Dashboard() {
               {layout.sidebarOpen ? null : (
                 <Button
                   variant="outline"
-                  size="sm"
+                  size="icon-sm"
+                  aria-label="Show markets"
                   aria-expanded={false}
                   onClick={() => setSidebar(true)}
                 >
                   <PanelLeft />
-                  Markets
                 </Button>
               )}
               <p className="text-xs text-muted-foreground">
@@ -340,7 +339,7 @@ export function Dashboard() {
               : "grid min-h-0 flex-1 grid-cols-1 grid-rows-1"
           }
         >
-          {layout.charts.map((chart) => (
+          {layout.charts.map((chart, index) => (
             <ChartPanel
               key={chart.id}
               id={chart.id}
@@ -352,6 +351,9 @@ export function Dashboard() {
               active={chart.id === layout.activeId}
               canClose={layout.charts.length > 1}
               showSelected={layout.charts.length > 1 && chart.id === layout.activeId}
+              marketsInset={
+                !layout.sidebarOpen && index % (layout.charts.length > 1 ? 2 : 1) === 0
+              }
               quote={quoteById.get(chart.coinId) ?? null}
               versusQuote={chart.versusId ? (quoteById.get(chart.versusId) ?? null) : null}
               onActivate={() => update({ ...layout, activeId: chart.id })}
