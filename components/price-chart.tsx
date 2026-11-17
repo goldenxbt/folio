@@ -470,6 +470,6 @@ export function PriceChart({
   }, [candles, fitId, interval, mode, positive, precision, showVolume, span, theme]);
 
   return (
-    <div ref={containerRef} className="h-full min-h-[240px] w-full overflow-hidden bg-background md:min-h-[280px]" />
+    <div ref={containerRef} className="h-full min-h-0 w-full overflow-hidden bg-background" />
   );
 }

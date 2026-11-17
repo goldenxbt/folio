@@ -26,7 +26,13 @@ import {
   formatUsd,
   toneClass,
 } from "@/lib/format";
-import { marketKey, type ChartMode } from "@/lib/layout";
+import {
+  MAX_PANEL_HEIGHT,
+  MIN_PANEL_HEIGHT,
+  clampPanelHeight,
+  marketKey,
+  type ChartMode,
+} from "@/lib/layout";
 import type { Candle, MarketSource, Quote } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -34,7 +40,7 @@ const PriceChart = dynamic(
   () => import("@/components/price-chart").then((mod) => mod.PriceChart),
   {
     ssr: false,
-    loading: () => <div className="h-full min-h-[280px] w-full animate-pulse bg-muted/60" />,
+    loading: () => <div className="h-full min-h-0 w-full animate-pulse bg-muted/60" />,
   },
 );
 
@@ -51,6 +57,8 @@ type ChartPanelProps = {
   interval: IntervalId;
   span: SpanId;
   mode: ChartMode;
+  height: number | null;
+  fillsScreen: boolean;
   active: boolean;
   canClose: boolean;
   showSelected: boolean;
@@ -62,6 +70,7 @@ type ChartPanelProps = {
   onInterval: (interval: IntervalId) => void;
   onSpan: (span: SpanId) => void;
   onMode: (mode: ChartMode) => void;
+  onHeight: (height: number | null) => void;
   onVersus: (versusId: string | null) => void;
   occupiedKeys: string[];
 };
@@ -138,6 +147,8 @@ export function ChartPanel({
   interval,
   span,
   mode,
+  height,
+  fillsScreen,
   active,
   canClose,
   showSelected,
@@ -149,6 +160,7 @@ export function ChartPanel({
   onInterval,
   onSpan,
   onMode,
+  onHeight,
   onVersus,
   occupiedKeys,
 }: ChartPanelProps) {
@@ -170,6 +182,9 @@ export function ChartPanel({
     loadingOlder: false,
   });
   const olderRef = useRef<AbortController | null>(null);
+  const sectionRef = useRef<HTMLElement>(null);
+  const dragOrigin = useRef<{ y: number; height: number } | null>(null);
+  const [dragHeight, setDragHeight] = useState<number | null>(null);
 
   if (state.key !== requestKey) {
     setState({
@@ -320,21 +335,31 @@ export function ChartPanel({
 
   const title = versus ? `${coin.symbol}/${versus.symbol}` : coin.name;
   const occupied = new Set(occupiedKeys);
+  const resolved = dragHeight ?? height;
+
+  function resizeFrom(clientY: number) {
+    const origin = dragOrigin.current;
+    if (!origin) return null;
+    return clampPanelHeight(origin.height + clientY - origin.y);
+  }
 
   return (
     <section
+      ref={sectionRef}
       id={`chart-${id}`}
       aria-label={`${title} price chart`}
       onClick={onActivate}
       onFocus={onActivate}
+      style={resolved != null ? { height: resolved } : undefined}
       className={cn(
-        "flex h-auto min-h-[580px] flex-col border-b border-border bg-background md:h-full md:min-h-0 md:border-r",
+        "flex min-h-0 flex-col overflow-hidden border-b border-border bg-background md:border-r",
+        resolved == null && (fillsScreen ? "h-dvh" : "h-[50dvh]"),
         active && "shadow-[inset_0_2px_0_var(--foreground)]",
       )}
     >
       <div
         className={cn(
-          "flex items-start justify-between gap-3 px-4 pt-4 md:px-5",
+          "flex shrink-0 items-start justify-between gap-3 px-4 pt-4 md:px-5",
           marketsInset && "md:pl-14",
         )}
       >
@@ -409,7 +434,7 @@ export function ChartPanel({
         ) : null}
       </div>
 
-      <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 px-4 sm:grid-cols-4 md:px-5">
+      <dl className="mt-4 grid shrink-0 grid-cols-2 gap-x-4 gap-y-3 px-4 sm:grid-cols-4 md:px-5">
         {versus ? (
           <>
             <Stat
@@ -445,7 +470,7 @@ export function ChartPanel({
         )}
       </dl>
 
-      <div className="mt-4 flex min-w-0 items-center gap-4 px-4 md:px-5">
+      <div className="mt-4 flex shrink-0 min-w-0 items-center gap-4 px-4 md:px-5">
         <div className="flex min-w-0 flex-1 items-center gap-3 overflow-x-auto">
           <span className="shrink-0 text-[11px] font-medium tracking-[0.14em] text-muted-foreground uppercase">
             Candle
@@ -541,18 +566,18 @@ export function ChartPanel({
         </div>
       </div>
 
-      <div className="mt-3 min-h-[280px] flex-1 px-2">
+      <div className="mt-3 min-h-0 flex-1 px-2">
         {state.loading ? (
           <div
             role="status"
-            className="flex h-full min-h-[280px] items-center justify-center text-sm text-muted-foreground"
+            className="flex h-full items-center justify-center text-sm text-muted-foreground"
           >
             Loading {title} candles
           </div>
         ) : state.error || !candles ? (
           <div
             role="alert"
-            className="flex h-full min-h-[280px] flex-col items-center justify-center gap-3 px-6 text-center"
+            className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center"
           >
             <p className="text-sm text-foreground">{state.error ?? "No candles returned."}</p>
             <Button
@@ -582,7 +607,7 @@ export function ChartPanel({
         )}
       </div>
 
-      <p className="flex min-h-8 items-center justify-between gap-3 px-4 py-2 text-xs text-muted-foreground tabular-nums md:px-5">
+      <p className="flex min-h-8 shrink-0 items-center justify-between gap-3 px-4 py-2 text-xs text-muted-foreground tabular-nums md:px-5">
         {hover ? (
           <span>
             {formatBarTime(hover.time, showTime)}
@@ -603,6 +628,68 @@ export function ChartPanel({
         )}
         <span className="hidden sm:inline">Scroll to zoom</span>
       </p>
+      <div
+        role="separator"
+        aria-orientation="horizontal"
+        aria-label={`Resize ${title}`}
+        aria-valuemin={MIN_PANEL_HEIGHT}
+        aria-valuemax={MAX_PANEL_HEIGHT}
+        aria-valuenow={resolved ?? undefined}
+        tabIndex={0}
+        title="Drag to resize. Double-click to fit."
+        className="flex h-3 shrink-0 cursor-row-resize touch-none items-center justify-center"
+        onPointerDown={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          const current =
+            resolved ??
+            event.currentTarget.parentElement?.getBoundingClientRect().height ??
+            MIN_PANEL_HEIGHT;
+          dragOrigin.current = { y: event.clientY, height: current };
+          event.currentTarget.setPointerCapture(event.pointerId);
+        }}
+        onPointerMove={(event) => {
+          const next = resizeFrom(event.clientY);
+          if (next == null) return;
+          setDragHeight(next);
+        }}
+        onPointerUp={(event) => {
+          const origin = dragOrigin.current;
+          if (!origin) return;
+          const next = resizeFrom(event.clientY);
+          dragOrigin.current = null;
+          setDragHeight(null);
+          if (next == null || Math.abs(next - origin.height) < 2) return;
+          onHeight(next);
+        }}
+        onPointerCancel={() => {
+          dragOrigin.current = null;
+          setDragHeight(null);
+        }}
+        onDoubleClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          dragOrigin.current = null;
+          setDragHeight(null);
+          onHeight(null);
+        }}
+        onKeyDown={(event) => {
+          const current = resolved ?? sectionRef.current?.getBoundingClientRect().height ?? 0;
+          if (current <= 0) return;
+          if (event.key === "ArrowDown") {
+            event.preventDefault();
+            onHeight(clampPanelHeight(current + 24));
+          } else if (event.key === "ArrowUp") {
+            event.preventDefault();
+            onHeight(clampPanelHeight(current - 24));
+          } else if (event.key === "Home") {
+            event.preventDefault();
+            onHeight(null);
+          }
+        }}
+      >
+        <span className="h-1 w-8 rounded-full bg-border" />
+      </div>
     </section>
   );
 }

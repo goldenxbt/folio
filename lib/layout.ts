@@ -2,6 +2,8 @@ import { getCoin, getInterval, getSpan, legacyRange, type IntervalId, type SpanI
 
 export const MAX_CHARTS = 4;
 export const LAYOUT_KEY = "folio-layout-v1";
+export const MIN_PANEL_HEIGHT = 320;
+export const MAX_PANEL_HEIGHT = 2400;
 
 export type ChartMode = "candle" | "line";
 
@@ -12,7 +14,12 @@ export type ChartSlot = {
   span: SpanId;
   mode: ChartMode;
   versusId: string | null;
+  height: number | null;
 };
+
+export function clampPanelHeight(height: number): number {
+  return Math.round(Math.min(MAX_PANEL_HEIGHT, Math.max(MIN_PANEL_HEIGHT, height)));
+}
 
 export type Layout = {
   charts: ChartSlot[];
@@ -26,7 +33,17 @@ export function marketKey(coinId: string, versusId: string | null): string {
 
 export function defaultLayout(): Layout {
   return {
-    charts: [{ id: "btc", coinId: "bitcoin", interval: "15m", span: "1D", mode: "candle", versusId: null }],
+    charts: [
+      {
+        id: "btc",
+        coinId: "bitcoin",
+        interval: "15m",
+        span: "1D",
+        mode: "candle",
+        versusId: null,
+        height: null,
+      },
+    ],
     activeId: "btc",
     sidebarOpen: true,
   };
@@ -65,6 +82,7 @@ export function sanitizeLayout(value: unknown): Layout {
       span: view.span,
       mode: slot.mode,
       versusId,
+      height: readHeight(slot.height),
     });
     if (charts.length === MAX_CHARTS) break;
   }
@@ -74,6 +92,12 @@ export function sanitizeLayout(value: unknown): Layout {
     ? (raw.activeId as string)
     : charts[0].id;
   return { charts, activeId, sidebarOpen: raw.sidebarOpen !== false };
+}
+
+function readHeight(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  if (value < MIN_PANEL_HEIGHT || value > MAX_PANEL_HEIGHT) return null;
+  return Math.round(value);
 }
 
 function readWindow(slot: { interval?: unknown; span?: unknown; range?: unknown }): {

@@ -173,7 +173,10 @@ export function Dashboard() {
     const id = crypto.randomUUID();
     update({
       ...layout,
-      charts: [...layout.charts, { id, coinId, interval: "1m", span: "12H", mode: "candle", versusId: null }],
+      charts: [
+        ...layout.charts,
+        { id, coinId, interval: "1m", span: "12H", mode: "candle", versusId: null, height: null },
+      ],
       activeId: id,
     });
     reveal(id);
@@ -213,7 +216,7 @@ export function Dashboard() {
 
   function patchChart(
     id: string,
-    patch: Partial<Pick<Layout["charts"][number], "interval" | "span" | "mode" | "versusId">>,
+    patch: Partial<Pick<Layout["charts"][number], "interval" | "span" | "mode" | "versusId" | "height">>,
   ) {
     const latest = parseStoredLayout(readLayoutSnapshot());
     update({
@@ -335,8 +338,8 @@ export function Dashboard() {
         <div
           className={
             layout.charts.length > 1
-              ? "grid min-h-0 flex-1 grid-cols-1 overflow-auto md:grid-cols-2 md:auto-rows-[minmax(740px,1fr)]"
-              : "grid min-h-0 flex-1 grid-cols-1 grid-rows-1"
+              ? "grid min-h-0 flex-1 content-start items-start grid-cols-1 overflow-auto md:grid-cols-2"
+              : "grid min-h-0 flex-1 content-start items-start grid-cols-1 overflow-auto"
           }
         >
           {layout.charts.map((chart, index) => (
@@ -348,6 +351,8 @@ export function Dashboard() {
               interval={chart.interval}
               span={chart.span}
               mode={chart.mode}
+              height={chart.height}
+              fillsScreen={layout.charts.length <= 2}
               active={chart.id === layout.activeId}
               canClose={layout.charts.length > 1}
               showSelected={layout.charts.length > 1 && chart.id === layout.activeId}
@@ -361,6 +366,7 @@ export function Dashboard() {
               onInterval={(interval) => patchChart(chart.id, { interval })}
               onSpan={(span) => patchChart(chart.id, { span })}
               onMode={(mode) => setMode(chart.id, mode)}
+              onHeight={(height) => patchChart(chart.id, { height })}
               occupiedKeys={layout.charts
                 .filter((slot) => slot.id !== chart.id)
                 .map((slot) => marketKey(slot.coinId, slot.versusId))}
