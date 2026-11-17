@@ -5,7 +5,7 @@ import { PanelLeft, Plus } from "lucide-react";
 import { ChartPanel } from "@/components/chart-panel";
 import { MarketSidebar, MarketStrip } from "@/components/market-sidebar";
 import { Button } from "@/components/ui/button";
-import { COINS } from "@/lib/coins";
+import { COINS, getCoin } from "@/lib/coins";
 import {
   MAX_CHARTS,
   marketKey,
@@ -19,6 +19,45 @@ import {
 } from "@/lib/layout";
 import { subscribeTicker, type LiveTick } from "@/lib/live-ticker";
 import type { MarketSource, Quote, QuotesResponse } from "@/lib/types";
+
+function chartButtonLabel(coinId: string, versusId: string | null): string {
+  const coin = getCoin(coinId);
+  const versus = versusId ? getCoin(versusId) : null;
+  if (!coin) return "Chart";
+  return versus ? `${coin.symbol}/${versus.symbol}` : coin.symbol;
+}
+
+function ChartJumpButtons({
+  charts,
+  activeId,
+  onJump,
+}: {
+  charts: Layout["charts"];
+  activeId: string;
+  onJump: (id: string) => void;
+}) {
+  return (
+    <div className="ml-auto flex min-w-0 justify-end gap-1.5 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {charts.map((chart) => {
+        const label = chartButtonLabel(chart.coinId, chart.versusId);
+        const selected = chart.id === activeId;
+        return (
+          <Button
+            key={chart.id}
+            variant={selected ? "default" : "outline"}
+            size="sm"
+            className="shrink-0"
+            aria-pressed={selected}
+            aria-label={`Scroll to ${label}`}
+            onClick={() => onJump(chart.id)}
+          >
+            {label}
+          </Button>
+        );
+      })}
+    </div>
+  );
+}
 
 export function Dashboard() {
   const storedLayout = useSyncExternalStore(
@@ -35,6 +74,7 @@ export function Dashboard() {
   const [live, setLive] = useState(false);
   const [previewHeight, setPreviewHeight] = useState<number | null>(null);
   const liveTicks = useRef(new Map<string, LiveTick>());
+  const chartListRef = useRef<HTMLDivElement>(null);
 
   function applyLive(quotes: Quote[]): Quote[] {
     return quotes.map((quote) => {
@@ -192,6 +232,17 @@ export function Dashboard() {
     });
   }
 
+  function jumpToChart(id: string) {
+    if (layout.activeId !== id) update({ ...layout, activeId: id });
+    requestAnimationFrame(() => {
+      const list = chartListRef.current;
+      const chart = document.getElementById(`chart-${id}`);
+      if (!list || !chart) return;
+      const top = chart.getBoundingClientRect().top - list.getBoundingClientRect().top + list.scrollTop;
+      list.scrollTo({ top, behavior: "smooth" });
+    });
+  }
+
   const openUsdIds = layout.charts
     .filter((chart) => chart.versusId === null)
     .map((chart) => chart.coinId);
@@ -281,21 +332,7 @@ export function Dashboard() {
         />
       </aside>
 
-      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-        {layout.sidebarOpen ? null : (
-          <Button
-            variant="outline"
-            size="icon-sm"
-            className="absolute top-3.5 left-3 z-20 hidden bg-background md:inline-flex"
-            aria-label="Show markets"
-            aria-expanded={false}
-            aria-controls="market-sidebar"
-            onClick={() => setSidebar(true)}
-          >
-            <PanelLeft />
-          </Button>
-        )}
-
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <div className="md:hidden">
           {layout.sidebarOpen ? (
             <MarketStrip
@@ -307,48 +344,61 @@ export function Dashboard() {
               onHide={() => setSidebar(false)}
             />
           ) : null}
-          <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-2">
-            <div className="flex items-center gap-2">
-              {layout.sidebarOpen ? null : (
-                <Button
-                  variant="outline"
-                  size="icon-sm"
-                  aria-label="Show markets"
-                  aria-expanded={false}
-                  onClick={() => setSidebar(true)}
-                >
-                  <PanelLeft />
+          {layout.sidebarOpen ? (
+            <>
+              <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-2">
+                <p className="text-xs text-muted-foreground">
+                  {layout.charts.length} of {MAX_CHARTS} charts
+                </p>
+                <Button size="sm" onClick={addChart} disabled={!canAdd}>
+                  <Plus />
+                  Add chart
                 </Button>
-              )}
-              <p className="text-xs text-muted-foreground">
-                {layout.charts.length} of {MAX_CHARTS} charts
+              </div>
+              <p className="px-4 pb-2 text-[11px] text-muted-foreground">
+                <a
+                  href="https://www.tradingview.com/"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline-offset-2 hover:underline"
+                >
+                  Charts by TradingView
+                </a>
               </p>
-            </div>
-            <Button size="sm" onClick={addChart} disabled={!canAdd}>
-              <Plus />
-              Add chart
-            </Button>
-          </div>
-          <p className="px-4 pb-2 text-[11px] text-muted-foreground">
-            <a
-              href="https://www.tradingview.com/"
-              target="_blank"
-              rel="noreferrer"
-              className="underline-offset-2 hover:underline"
-            >
-              Charts by TradingView
-            </a>
-          </p>
+            </>
+          ) : null}
         </div>
 
+        {layout.sidebarOpen ? null : (
+          <div className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-2">
+            <Button
+              variant="outline"
+              size="icon-sm"
+              className="shrink-0"
+              aria-label="Show markets"
+              aria-expanded={false}
+              aria-controls="market-sidebar"
+              onClick={() => setSidebar(true)}
+            >
+              <PanelLeft />
+            </Button>
+            <ChartJumpButtons
+              charts={layout.charts}
+              activeId={layout.activeId}
+              onJump={jumpToChart}
+            />
+          </div>
+        )}
+
         <div
-          className={
-            layout.charts.length > 1
-              ? "grid min-h-0 flex-1 content-start items-start grid-cols-1 overflow-auto md:grid-cols-2"
-              : "grid min-h-0 flex-1 content-start items-start grid-cols-1 overflow-auto"
-          }
+          ref={chartListRef}
+          className={[
+            "grid min-h-0 flex-1 content-start items-start overflow-x-hidden overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+            layout.charts.length > 1 ? "grid-cols-1 md:grid-cols-2" : "grid-cols-1",
+            layout.charts.length <= 2 ? "md:grid-rows-1" : "",
+          ].join(" ")}
         >
-          {layout.charts.map((chart, index) => (
+          {layout.charts.map((chart) => (
             <ChartPanel
               key={chart.id}
               id={chart.id}
@@ -363,9 +413,6 @@ export function Dashboard() {
               active={chart.id === layout.activeId}
               canClose={layout.charts.length > 1}
               showSelected={layout.charts.length > 1 && chart.id === layout.activeId}
-              marketsInset={
-                !layout.sidebarOpen && index % (layout.charts.length > 1 ? 2 : 1) === 0
-              }
               quote={quoteById.get(chart.coinId) ?? null}
               versusQuote={chart.versusId ? (quoteById.get(chart.versusId) ?? null) : null}
               onActivate={() => update({ ...layout, activeId: chart.id })}

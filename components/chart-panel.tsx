@@ -63,7 +63,6 @@ type ChartPanelProps = {
   active: boolean;
   canClose: boolean;
   showSelected: boolean;
-  marketsInset: boolean;
   quote: Quote | null;
   versusQuote: Quote | null;
   onActivate: () => void;
@@ -275,7 +274,6 @@ export function ChartPanel({
   active,
   canClose,
   showSelected,
-  marketsInset,
   quote,
   versusQuote,
   onActivate,
@@ -515,7 +513,7 @@ export function ChartPanel({
       style={resolved != null ? { height: resolved } : undefined}
       className={cn(
         "flex min-h-0 flex-col overflow-hidden border-b border-border bg-background md:border-r",
-        resolved == null && (fillsScreen ? "h-dvh" : "h-[50dvh]"),
+        resolved == null && (fillsScreen ? "h-dvh md:h-full" : "h-[50dvh]"),
         active && "shadow-[inset_0_2px_0_var(--foreground)]",
       )}
     >
@@ -523,7 +521,6 @@ export function ChartPanel({
         className={cn(
           "flex shrink-0 items-start justify-between gap-3 px-4 md:px-5",
           compact ? "pt-3" : "pt-4",
-          marketsInset && "md:pl-14",
         )}
       >
         <div className="min-w-0 flex-1">
