@@ -113,11 +113,11 @@ export function MarketSidebar({
             <h1 className="mt-1 text-[1.7rem] leading-none font-semibold tracking-tight">Folio</h1>
           </div>
           <div className="flex items-center gap-1.5">
+            <ThemeToggle />
             <Button variant="outline" size="sm" aria-expanded={true} aria-controls="market-sidebar" onClick={onHide}>
               <PanelLeftClose />
               Hide
             </Button>
-            <ThemeToggle />
           </div>
         </div>
         <p className="mt-2 text-sm leading-5 text-muted-foreground">
@@ -279,11 +279,11 @@ export function MarketStrip({
           <h1 className="text-lg font-semibold tracking-tight">Folio</h1>
         </div>
         <div className="flex items-center gap-1.5">
+          <ThemeToggle />
           <Button variant="outline" size="sm" aria-expanded={true} onClick={onHide}>
             <PanelLeftClose />
             Hide
           </Button>
-          <ThemeToggle />
         </div>
       </div>
       <div className="px-4 py-3">
