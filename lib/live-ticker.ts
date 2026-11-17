@@ -11,8 +11,8 @@ export type LiveTick = {
   priceFromTrade: boolean;
 };
 
-const STREAM_URL = "wss://ws.kraken.com/v2";
-const idBySymbol = new Map(COINS.map((coin) => [`${coin.symbol}/USD`, coin.id]));
+const STREAM_URL = "wss://data-stream.binance.vision/ws";
+const idBySymbol = new Map(COINS.map((coin) => [`${coin.symbol}USDT`, coin.id]));
 
 function asNumber(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -36,46 +36,42 @@ function asEpochSec(value: unknown): number | null {
 
 function readPayload(payload: unknown): LiveTick[] {
   if (!payload || typeof payload !== "object") return [];
-  const message = payload as { channel?: unknown; data?: unknown };
-  if (!Array.isArray(message.data)) return [];
+  const message = payload as Record<string, unknown>;
+  if (message.data && typeof message.data === "object") return readPayload(message.data);
+  const id = typeof message.s === "string" ? idBySymbol.get(message.s) : undefined;
+  if (!id) return [];
 
-  const ticks: LiveTick[] = [];
-  for (const item of message.data) {
-    if (!item || typeof item !== "object") continue;
-    const row = item as Record<string, unknown>;
-    const id = typeof row.symbol === "string" ? idBySymbol.get(row.symbol) : undefined;
-    const price = asNumber(row.price) ?? asNumber(row.last);
-    const tradedAt = asEpochSec(row.timestamp);
-    if (!id || price == null || price <= 0 || tradedAt == null) continue;
-
-    if (message.channel === "trade") {
-      ticks.push({
-        id,
-        price,
-        tradedAt,
-        change24h: null,
-        high24h: null,
-        low24h: null,
-        volume24h: null,
-        priceFromTrade: true,
-      });
-      continue;
-    }
-
-    if (message.channel !== "ticker") continue;
-    const volume = asNumber(row.volume);
-    ticks.push({
+  if (message.e === "trade") {
+    const price = asNumber(message.p);
+    const tradedAt = asEpochSec(message.T);
+    if (price == null || price <= 0 || tradedAt == null) return [];
+    return [{
       id,
       price,
       tradedAt,
-      change24h: asNumber(row.change_pct),
-      high24h: asNumber(row.high),
-      low24h: asNumber(row.low),
-      volume24h: volume == null ? null : volume * price,
-      priceFromTrade: false,
-    });
+      change24h: null,
+      high24h: null,
+      low24h: null,
+      volume24h: null,
+      priceFromTrade: true,
+    }];
   }
-  return ticks;
+
+  if (message.e !== "24hrMiniTicker") return [];
+  const price = asNumber(message.c);
+  const open = asNumber(message.o);
+  const tradedAt = asEpochSec(message.E);
+  if (price == null || price <= 0 || tradedAt == null) return [];
+  return [{
+    id,
+    price,
+    tradedAt,
+    change24h: open != null && open > 0 ? ((price - open) / open) * 100 : null,
+    high24h: asNumber(message.h),
+    low24h: asNumber(message.l),
+    volume24h: asNumber(message.q),
+    priceFromTrade: false,
+  }];
 }
 
 export function subscribeTicker(onTicks: (ticks: LiveTick[]) => void): () => void {
@@ -122,9 +118,11 @@ export function subscribeTicker(onTicks: (ticks: LiveTick[]) => void): () => voi
 
     next.addEventListener("open", () => {
       attempt = 0;
-      const symbols = COINS.map((coin) => `${coin.symbol}/USD`);
-      next.send(JSON.stringify({ method: "subscribe", params: { channel: "ticker", symbol: symbols } }));
-      next.send(JSON.stringify({ method: "subscribe", params: { channel: "trade", symbol: symbols } }));
+      const params = COINS.flatMap((coin) => {
+        const symbol = `${coin.symbol.toLowerCase()}usdt`;
+        return [`${symbol}@trade`, `${symbol}@miniTicker`];
+      });
+      next.send(JSON.stringify({ method: "SUBSCRIBE", params, id: 1 }));
     });
 
     next.addEventListener("message", (event) => {
