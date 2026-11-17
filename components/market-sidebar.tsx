@@ -125,7 +125,7 @@ export function MarketSidebar({
           </div>
         </div>
       </div>
-      <div className={open ? "flex min-h-0 flex-1 flex-col" : "invisible flex min-h-0 flex-1 flex-col"} inert={open ? undefined : true}>
+      <div className={open ? "flex min-h-0 flex-1 flex-col" : "hidden"} inert={open ? undefined : true}>
         <div className="px-4 pt-2 pb-3">
           <p className="text-[11px] font-medium tracking-[0.18em] text-muted-foreground">MARKETS</p>
           <h1 className="mt-1 text-[1.7rem] leading-none font-semibold tracking-tight">Folio</h1>
