@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { COINS } from "@/lib/coins";
 import {
   MAX_CHARTS,
+  marketKey,
   emptyLayoutSnapshot,
   parseStoredLayout,
   readLayoutSnapshot,
@@ -73,30 +74,67 @@ export function Dashboard() {
     writeLayout(next);
   }
 
+  function findOpen(coinId: string, versusId: string | null, exceptId?: string) {
+    return layout.charts.find(
+      (chart) => chart.id !== exceptId && chart.coinId === coinId && chart.versusId === versusId,
+    );
+  }
+
+  function focusChart(id: string) {
+    if (layout.activeId !== id) update({ ...layout, activeId: id });
+    reveal(id);
+  }
+
   function selectCoin(coinId: string) {
+    const current = layout.charts.find((chart) => chart.id === layout.activeId);
+    if (!current) return;
+    const versusId = current.versusId === coinId ? null : current.versusId;
+    const other = findOpen(coinId, versusId, current.id);
+    if (other) {
+      focusChart(other.id);
+      return;
+    }
+    if (current.coinId === coinId && current.versusId === versusId) {
+      focusChart(current.id);
+      return;
+    }
     update({
       ...layout,
       charts: layout.charts.map((chart) =>
-        chart.id === layout.activeId
-          ? { ...chart, coinId, versusId: chart.versusId === coinId ? null : chart.versusId }
-          : chart,
+        chart.id === current.id ? { ...chart, coinId, versusId } : chart,
       ),
     });
-    reveal(layout.activeId);
+    reveal(current.id);
   }
 
   function selectPair(coinId: string, versusId: string) {
     if (coinId === versusId) return;
+    const current = layout.charts.find((chart) => chart.id === layout.activeId);
+    if (!current) return;
+    const other = findOpen(coinId, versusId, current.id);
+    if (other) {
+      focusChart(other.id);
+      return;
+    }
+    if (current.coinId === coinId && current.versusId === versusId) {
+      focusChart(current.id);
+      return;
+    }
     update({
       ...layout,
       charts: layout.charts.map((chart) =>
-        chart.id === layout.activeId ? { ...chart, coinId, versusId } : chart,
+        chart.id === current.id ? { ...chart, coinId, versusId } : chart,
       ),
     });
-    reveal(layout.activeId);
+    reveal(current.id);
   }
 
   function openCoin(coinId: string) {
+    const existing = findOpen(coinId, null);
+    if (existing) {
+      focusChart(existing.id);
+      return;
+    }
     if (layout.charts.length >= MAX_CHARTS) return;
     const id = crypto.randomUUID();
     update({
@@ -115,9 +153,16 @@ export function Dashboard() {
     });
   }
 
+  const openUsdIds = layout.charts
+    .filter((chart) => chart.versusId === null)
+    .map((chart) => chart.coinId);
+  const canAdd =
+    layout.charts.length < MAX_CHARTS &&
+    COINS.some((coin) => !openUsdIds.includes(coin.id));
+
   function addChart() {
-    const used = new Set(layout.charts.map((chart) => chart.coinId));
-    const nextCoin = COINS.find((coin) => !used.has(coin.id))?.id ?? "bitcoin";
+    const nextCoin = COINS.find((coin) => !openUsdIds.includes(coin.id))?.id;
+    if (!nextCoin) return;
     openCoin(nextCoin);
   }
 
@@ -145,6 +190,17 @@ export function Dashboard() {
     patchChart(id, { mode });
   }
 
+  function setVersus(id: string, versusId: string | null) {
+    const current = layout.charts.find((chart) => chart.id === id);
+    if (!current || current.versusId === versusId) return;
+    const other = findOpen(current.coinId, versusId, id);
+    if (other) {
+      focusChart(other.id);
+      return;
+    }
+    patchChart(id, { versusId });
+  }
+
   return (
     <div className="flex h-dvh flex-col bg-background md:flex-row">
       <aside className="hidden h-dvh w-[320px] shrink-0 border-r border-border bg-sidebar md:block">
@@ -157,6 +213,8 @@ export function Dashboard() {
           activeVersusId={active?.versusId ?? null}
           chartCount={layout.charts.length}
           maxCharts={MAX_CHARTS}
+          canAdd={canAdd}
+          openUsdIds={openUsdIds}
           onSelect={selectCoin}
           onSelectPair={selectPair}
           onOpen={openCoin}
@@ -178,7 +236,7 @@ export function Dashboard() {
             <p className="text-xs text-muted-foreground">
               {layout.charts.length} of {MAX_CHARTS} charts
             </p>
-            <Button size="sm" onClick={addChart} disabled={layout.charts.length >= MAX_CHARTS}>
+            <Button size="sm" onClick={addChart} disabled={!canAdd}>
               <Plus />
               Add chart
             </Button>
@@ -219,7 +277,10 @@ export function Dashboard() {
               onClose={() => closeChart(chart.id)}
               onRange={(range) => patchChart(chart.id, { range })}
               onMode={(mode) => setMode(chart.id, mode)}
-              onVersus={(versusId) => patchChart(chart.id, { versusId })}
+              occupiedKeys={layout.charts
+                .filter((slot) => slot.id !== chart.id)
+                .map((slot) => marketKey(slot.coinId, slot.versusId))}
+              onVersus={(versusId) => setVersus(chart.id, versusId)}
             />
           ))}
         </div>

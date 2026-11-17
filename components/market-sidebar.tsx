@@ -20,6 +20,8 @@ type MarketListProps = {
   activeVersusId: string | null;
   chartCount: number;
   maxCharts: number;
+  canAdd: boolean;
+  openUsdIds: string[];
   onSelect: (coinId: string) => void;
   onSelectPair: (baseId: string, quoteId: string) => void;
   onOpen: (coinId: string) => void;
@@ -86,6 +88,8 @@ export function MarketSidebar({
   activeVersusId,
   chartCount,
   maxCharts,
+  canAdd,
+  openUsdIds,
   onSelect,
   onSelectPair,
   onOpen,
@@ -94,7 +98,7 @@ export function MarketSidebar({
 }: MarketListProps) {
   const [query, setQuery] = useState("");
   const { coins, quoteById } = useOrderedCoins(quotes, query);
-  const atMax = chartCount >= maxCharts;
+  const openUsd = new Set(openUsdIds);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -136,6 +140,12 @@ export function MarketSidebar({
             {coins.map((coin) => {
               const quote = quoteById.get(coin.id);
               const selected = coin.id === activeCoinId;
+              const alreadyOpen = openUsd.has(coin.id);
+              const plusLabel = alreadyOpen
+                ? `${coin.name} is already open`
+                : canAdd
+                  ? `Open ${coin.name} in a new chart`
+                  : "Four charts are already open";
               return (
                 <li
                   key={coin.id}
@@ -170,9 +180,9 @@ export function MarketSidebar({
                     variant="ghost"
                     size="icon-sm"
                     className="mr-2 self-center"
-                    title="Open in a new chart"
-                    aria-label={`Open ${coin.name} in a new chart`}
-                    disabled={atMax}
+                    title={plusLabel}
+                    aria-label={plusLabel}
+                    disabled={alreadyOpen || !canAdd}
                     onClick={() => onOpen(coin.id)}
                   >
                     <Plus />
@@ -200,12 +210,12 @@ export function MarketSidebar({
             ETH/HYPE is how much HYPE one ETH buys. The quote menu on a chart can pair any two.
           </p>
         </div>
-        <Button className="w-full" onClick={onAdd} disabled={atMax}>
+        <Button className="w-full" onClick={onAdd} disabled={!canAdd}>
           <Plus />
           Add chart
         </Button>
         <p className="text-xs text-muted-foreground">
-          {chartCount} of {maxCharts} charts. Plus opens another, up to four side by side.
+          {chartCount} of {maxCharts} charts. A coin or a pair can only be open once.
         </p>
         {error ? (
           <div className="flex items-center justify-between gap-2">

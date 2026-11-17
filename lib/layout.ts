@@ -18,6 +18,10 @@ export type Layout = {
   activeId: string;
 };
 
+export function marketKey(coinId: string, versusId: string | null): string {
+  return `${coinId}:${versusId ?? "usd"}`;
+}
+
 export function defaultLayout(): Layout {
   return {
     charts: [{ id: "btc", coinId: "bitcoin", range: "1D", mode: "candle", versusId: null }],
@@ -33,6 +37,7 @@ export function sanitizeLayout(value: unknown): Layout {
   if (!Array.isArray(raw.charts)) return fallback;
 
   const charts: ChartSlot[] = [];
+  const seen = new Set<string>();
   for (const item of raw.charts) {
     if (!item || typeof item !== "object") continue;
     const slot = item as Partial<ChartSlot>;
@@ -46,6 +51,9 @@ export function sanitizeLayout(value: unknown): Layout {
       getCoin(slot.versusId)
         ? slot.versusId
         : null;
+    const key = marketKey(slot.coinId, versusId);
+    if (seen.has(key)) continue;
+    seen.add(key);
     charts.push({
       id: slot.id,
       coinId: slot.coinId,

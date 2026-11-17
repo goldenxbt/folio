@@ -15,7 +15,7 @@ import {
   formatUsd,
   toneClass,
 } from "@/lib/format";
-import type { ChartMode } from "@/lib/layout";
+import { marketKey, type ChartMode } from "@/lib/layout";
 import type { Candle, MarketSource, Quote } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -51,6 +51,7 @@ type ChartPanelProps = {
   onRange: (range: RangeId) => void;
   onMode: (mode: ChartMode) => void;
   onVersus: (versusId: string | null) => void;
+  occupiedKeys: string[];
 };
 
 type CandleState = {
@@ -147,6 +148,7 @@ export function ChartPanel({
   onRange,
   onMode,
   onVersus,
+  occupiedKeys,
 }: ChartPanelProps) {
   const coin = getCoin(coinId);
   const versus = versusId ? getCoin(versusId) : null;
@@ -245,6 +247,7 @@ export function ChartPanel({
   if (!coin) return null;
 
   const title = versus ? `${coin.symbol}/${versus.symbol}` : coin.name;
+  const occupied = new Set(occupiedKeys);
 
   return (
     <section
@@ -274,9 +277,15 @@ export function ChartPanel({
                   onVersus(next === "usd" || next === coin.id ? null : next);
                 }}
               >
-                <option value="usd">USD</option>
+                <option value="usd" disabled={occupied.has(marketKey(coin.id, null))}>
+                  USD
+                </option>
                 {COINS.map((item) => (
-                  <option key={item.id} value={item.id} disabled={item.id === coin.id}>
+                  <option
+                    key={item.id}
+                    value={item.id}
+                    disabled={item.id === coin.id || occupied.has(marketKey(coin.id, item.id))}
+                  >
                     {item.symbol}
                   </option>
                 ))}
