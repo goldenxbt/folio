@@ -314,7 +314,7 @@ export function PriceChart({
         horzLine: { color: colors.crosshair, labelBackgroundColor: colors.label },
       },
       timeScale: {
-        timeVisible: range === "1D" || range === "7D",
+        timeVisible: range === "1m" || range === "1D" || range === "7D",
         secondsVisible: false,
         borderVisible: false,
       },

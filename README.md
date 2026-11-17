@@ -1,6 +1,6 @@
 # Folio
 
-A light crypto price chart. The left rail lists the major coins. The main area is a candlestick chart in the style of a CoinDesk price page: a large last price, the move over the selected range, 24h high and low, volume, market cap, and range buttons for 1D, 7D, 1M, 3M, and 1Y.
+A light crypto price chart. The left rail lists the major coins. The main area is a candlestick chart in the style of a CoinDesk price page: a large last price, the move over the selected range, 24h high and low, volume, market cap, and range buttons for 1m, 1D, 7D, 1M, 3M, and 1Y. A chart you add opens on 1-minute candles.
 
 Open up to four charts. Click a coin to change the selected chart. Use the plus control to open that coin in another chart. A dollar chart or a pair can only be open once, so the plus control is disabled for a coin already on screen, and choosing a pair that is already open jumps to that chart. Switch any chart between candles and a line.
 

@@ -139,7 +139,7 @@ export function Dashboard() {
     const id = crypto.randomUUID();
     update({
       ...layout,
-      charts: [...layout.charts, { id, coinId, range: "1D", mode: "candle", versusId: null }],
+      charts: [...layout.charts, { id, coinId, range: "1m", mode: "candle", versusId: null }],
       activeId: id,
     });
     reveal(id);

@@ -1,5 +1,13 @@
 export const RANGES = [
   {
+    id: "1m",
+    label: "1m",
+    krakenInterval: 1,
+    coinbaseGranularity: 60,
+    windowSec: 12 * 60 * 60,
+    interval: "1-minute",
+  },
+  {
     id: "1D",
     label: "1D",
     krakenInterval: 15,

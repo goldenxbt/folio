@@ -33,7 +33,7 @@ const SOURCE_NAME: Record<MarketSource, string> = {
   coingecko: "CoinGecko",
 };
 
-const RANGES: RangeId[] = ["1D", "7D", "1M", "3M", "1Y"];
+const RANGES: RangeId[] = ["1m", "1D", "7D", "1M", "3M", "1Y"];
 
 type ChartPanelProps = {
   id: string;
@@ -240,7 +240,7 @@ export function ChartPanel({
   const move = rangeMove(candles);
   const extremes = rangeExtremes(candles);
   const price = livePrice ?? candles?.at(-1)?.close ?? null;
-  const showTime = range === "1D" || range === "7D";
+  const showTime = range === "1m" || range === "1D" || range === "7D";
   const formatValue = versus ? formatRatio : formatUsd;
   const formatSigned = versus ? formatSignedRatio : formatSignedUsd;
 
