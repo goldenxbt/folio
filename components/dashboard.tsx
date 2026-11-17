@@ -415,27 +415,21 @@ export function Dashboard() {
               showSelected={layout.charts.length > 1 && chart.id === layout.activeId}
               headerTools={
                 layout.sidebarOpen || index > 0 ? null : (
-                  <div
-                    className="hidden shrink-0 items-center gap-1.5 md:flex"
-                    onClick={(event) => event.stopPropagation()}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="hidden shrink-0 md:inline-flex"
+                    aria-label="Show markets"
+                    aria-expanded={false}
+                    aria-controls="market-sidebar"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setSidebar(true);
+                    }}
                   >
-                    <ChartJumpButtons
-                      charts={layout.charts}
-                      activeId={layout.activeId}
-                      onJump={jumpToChart}
-                    />
-                    <Button
-                      variant="outline"
-                      size="icon-sm"
-                      className="shrink-0"
-                      aria-label="Show markets"
-                      aria-expanded={false}
-                      aria-controls="market-sidebar"
-                      onClick={() => setSidebar(true)}
-                    >
-                      <PanelLeft />
-                    </Button>
-                  </div>
+                    <PanelLeft />
+                    Show
+                  </Button>
                 )
               }
               quote={quoteById.get(chart.coinId) ?? null}
