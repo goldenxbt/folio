@@ -312,7 +312,7 @@ export function Dashboard() {
   useEffect(() => {
     if (layout.sidebarOpen) return;
     function onMove(event: MouseEvent) {
-      const inside = marketsFocusRef.current || event.clientX <= (marketsPeekRef.current ? 324 : 12);
+      const inside = marketsFocusRef.current || event.clientX <= (marketsPeekRef.current ? 324 : 44);
       if (inside === marketsPeekRef.current) return;
       marketsPeekRef.current = inside;
       setMarketsPeek(inside);
@@ -371,12 +371,18 @@ export function Dashboard() {
           />
         </aside>
         {layout.sidebarOpen ? null : (
-          <button
-            type="button"
-            className="fixed inset-y-0 left-0 z-30 hidden w-3 cursor-e-resize md:block"
-            aria-label="Show markets"
-            onClick={() => setSidebar(true)}
-          />
+          <div className="hidden h-dvh w-11 shrink-0 border-r border-border bg-sidebar px-2 pt-2.5 md:block">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Show markets"
+              aria-expanded={false}
+              aria-controls="market-sidebar"
+              onClick={() => setSidebar(true)}
+            >
+              <PanelLeft />
+            </Button>
+          </div>
         )}
       </div>
 
@@ -458,7 +464,6 @@ export function Dashboard() {
               height={previewHeight ?? layout.panelHeight}
               fillsScreen={layout.charts.length <= 2}
               compact={layout.charts.length >= 3}
-              active={chart.id === layout.activeId}
               canClose={layout.charts.length > 1}
               showSelected={layout.charts.length > 1 && chart.id === layout.activeId}
               quote={quoteById.get(chart.coinId) ?? null}

@@ -60,7 +60,6 @@ type ChartPanelProps = {
   height: number | null;
   fillsScreen: boolean;
   compact: boolean;
-  active: boolean;
   canClose: boolean;
   showSelected: boolean;
   quote: Quote | null;
@@ -271,7 +270,6 @@ export function ChartPanel({
   height,
   fillsScreen,
   compact,
-  active,
   canClose,
   showSelected,
   quote,
@@ -514,7 +512,6 @@ export function ChartPanel({
       className={cn(
         "flex min-h-0 flex-col overflow-hidden border-b border-border bg-background md:border-r",
         resolved == null && (fillsScreen ? "h-dvh md:h-full" : "h-[50dvh]"),
-        active && "shadow-[inset_0_2px_0_var(--foreground)]",
       )}
     >
       <div
