@@ -12,7 +12,7 @@ import {
   type ISeriesApi,
   type UTCTimestamp,
 } from "lightweight-charts";
-import { rangeShowsClock, type RangeId } from "@/lib/coins";
+import { getInterval, getSpan, intervalShowsClock, type IntervalId, type SpanId } from "@/lib/coins";
 import { pricePrecision } from "@/lib/format";
 import {
   applyTheme,
@@ -28,9 +28,12 @@ type PriceChartProps = {
   mode: "candle" | "line";
   positive: boolean;
   fitId: string;
-  range: RangeId;
+  interval: IntervalId;
+  span: SpanId;
   showVolume: boolean;
   formatPrice: (value: number) => string;
+  historyDone: boolean;
+  onNeedHistory: () => void;
   onHover: (candle: Candle | null) => void;
 };
 
@@ -97,17 +100,7 @@ function volumeColor(candle: Candle, colors: Palette): string {
   return withAlpha(candle.close >= candle.open ? colors.up : colors.down, 0.38);
 }
 
-function paintSeries(
-  chart: IChartApi,
-  series: SeriesRefs,
-  candles: Candle[],
-  fitKey: string,
-  fitKeyRef: { current: string },
-  colors: Palette,
-  onHover: (candle: Candle | null) => void,
-) {
-  if (candles.length === 0) return;
-
+function setSeriesData(series: SeriesRefs, candles: Candle[], colors: Palette) {
   series.candle?.setData(
     candles.map((candle) => ({
       time: candle.time as UTCTimestamp,
@@ -130,11 +123,50 @@ function paintSeries(
       color: volumeColor(candle, colors),
     })),
   );
+}
 
-  if (fitKeyRef.current !== fitKey) {
-    chart.timeScale().fitContent();
-    fitKeyRef.current = fitKey;
-    onHover(null);
+function showLoadedSpan(
+  chart: IChartApi,
+  candles: Candle[],
+  span: SpanId,
+  interval: IntervalId,
+  adjusting: { current: boolean },
+) {
+  const windowSec = getSpan(span)?.windowSec;
+  const step = getInterval(interval)?.seconds ?? 60;
+  if (!windowSec || candles.length === 0) return;
+  const width = chart.timeScale().width();
+  if (width < 32) return;
+  const wanted = Math.max(10, Math.round(windowSec / step));
+  const spacing = Math.min(14, Math.max(0.02, width / wanted));
+  const visibleBars = width / spacing;
+  const lastIndex = candles.length - 1;
+  adjusting.current = true;
+  chart.timeScale().applyOptions({ barSpacing: spacing, rightOffset: 2 });
+  chart.timeScale().setVisibleLogicalRange({
+    from: lastIndex + 2 - visibleBars,
+    to: lastIndex + 2,
+  });
+  adjusting.current = false;
+}
+
+function updateTail(series: SeriesRefs, candles: Candle[], fromIndex: number, colors: Palette) {
+  for (let index = fromIndex; index < candles.length; index += 1) {
+    const candle = candles[index];
+    const time = candle.time as UTCTimestamp;
+    series.candle?.update({
+      time,
+      open: candle.open,
+      high: candle.high,
+      low: candle.low,
+      close: candle.close,
+    });
+    series.area?.update({ time, value: candle.close });
+    series.volume?.update({
+      time,
+      value: candle.volume,
+      color: volumeColor(candle, colors),
+    });
   }
 }
 
@@ -143,9 +175,12 @@ export function PriceChart({
   mode,
   positive,
   fitId,
-  range,
+  interval,
+  span,
   showVolume,
   formatPrice,
+  historyDone,
+  onNeedHistory,
   onHover,
 }: PriceChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -158,12 +193,24 @@ export function PriceChart({
   const themeRef = useRef(theme);
   const fitKeyRef = useRef("");
   const seriesKeyRef = useRef("");
+  const previousRef = useRef<Candle[]>([]);
+  const historyRef = useRef(onNeedHistory);
+  const historyDoneRef = useRef(historyDone);
+  const adjustingRef = useRef(false);
+  const chainRef = useRef(0);
+  const spanRef = useRef(span);
+  const intervalRef = useRef(interval);
+  const requestHistoryRef = useRef(() => {});
 
   const precision = pricePrecision(candles.at(-1)?.close ?? 1);
 
   useEffect(() => {
     hoverRef.current = onHover;
-  }, [onHover]);
+    historyRef.current = onNeedHistory;
+    historyDoneRef.current = historyDone;
+    spanRef.current = span;
+    intervalRef.current = interval;
+  }, [historyDone, interval, onHover, onNeedHistory, span]);
 
   useEffect(() => {
     themeRef.current = theme;
@@ -196,7 +243,7 @@ export function PriceChart({
       },
       rightPriceScale: { borderVisible: false },
       leftPriceScale: { visible: false },
-      timeScale: { borderVisible: false, secondsVisible: false },
+      timeScale: { borderVisible: false, secondsVisible: false, minBarSpacing: 0.02, rightOffset: 2 },
       crosshair: {
         mode: CrosshairMode.Normal,
         vertLine: {
@@ -222,13 +269,42 @@ export function PriceChart({
       hoverRef.current(match ?? null);
     });
 
+    const requestHistory = () => {
+      if (historyDoneRef.current || chainRef.current >= 30) return;
+      const range = chart.timeScale().getVisibleLogicalRange();
+      const active = seriesRef.current.candle ?? seriesRef.current.area;
+      if (!range || !active) return;
+      const info = active.barsInLogicalRange(range);
+      if (!info) return;
+      const candles = candlesRef.current;
+      const windowSec = getSpan(spanRef.current)?.windowSec ?? 0;
+      const step = getInterval(intervalRef.current)?.seconds ?? 60;
+      const first = candles[0]?.time;
+      const last = candles.at(-1)?.time;
+      const spanNeedsData = first != null && last != null && first > last - windowSec + step;
+      if (info.barsBefore >= 50 && !spanNeedsData) return;
+      chainRef.current += 1;
+      historyRef.current();
+    };
+
+    let lastFrom = Number.NaN;
+    chart.timeScale().subscribeVisibleLogicalRangeChange((range) => {
+      if (!range || adjustingRef.current) return;
+      const delta = Number.isNaN(lastFrom) ? 0 : Math.abs(range.from - lastFrom);
+      lastFrom = range.from;
+      if (delta < 2) return;
+      chainRef.current = 0;
+      requestHistory();
+    });
+
+    requestHistoryRef.current = requestHistory;
     chartRef.current = chart;
     const widthRef = { current: 0 };
     const observer = new ResizeObserver(() => {
       const width = element.clientWidth;
       if (width === 0 || Math.abs(width - widthRef.current) < 16) return;
       widthRef.current = width;
-      chart.timeScale().fitContent();
+      showLoadedSpan(chart, candlesRef.current, spanRef.current, intervalRef.current, adjustingRef);
     });
     observer.observe(element);
     return () => {
@@ -238,6 +314,7 @@ export function PriceChart({
       seriesRef.current = { candle: null, area: null, volume: null };
       seriesKeyRef.current = "";
       fitKeyRef.current = "";
+      previousRef.current = [];
     };
   }, []);
 
@@ -248,7 +325,9 @@ export function PriceChart({
     candlesRef.current = candles;
     const colors = palette(theme);
     const seriesKey = `${theme}:${mode}:${positive ? "up" : "down"}:${precision}:${showVolume ? "vol" : "flat"}`;
+    let seriesReset = false;
     if (seriesKeyRef.current !== seriesKey) {
+      seriesReset = true;
       const previous = seriesRef.current;
       if (previous.candle) chart.removeSeries(previous.candle);
       if (previous.area) chart.removeSeries(previous.area);
@@ -314,21 +393,81 @@ export function PriceChart({
         horzLine: { color: colors.crosshair, labelBackgroundColor: colors.label },
       },
       timeScale: {
-        timeVisible: rangeShowsClock(range),
+        timeVisible: intervalShowsClock(interval),
         secondsVisible: false,
         borderVisible: false,
+        shiftVisibleRangeOnNewBar: true,
       },
     });
-    paintSeries(
-      chart,
-      seriesRef.current,
-      candles,
-      `${fitId}:${range}:${mode}`,
-      fitKeyRef,
-      colors,
-      (candle) => hoverRef.current(candle),
-    );
-  }, [candles, fitId, mode, positive, precision, range, showVolume, theme]);
+
+    const previous = previousRef.current;
+    const fitKey = `${fitId}:${interval}:${span}:${mode}`;
+    const fitChanged = fitKeyRef.current !== fitKey;
+    const first = candles[0]?.time;
+    const last = candles[candles.length - 1]?.time;
+    const prevFirst = previous[0]?.time;
+    const prevLast = previous[previous.length - 1]?.time;
+    const prepended =
+      !seriesReset &&
+      !fitChanged &&
+      previous.length > 0 &&
+      candles.length > previous.length &&
+      first != null &&
+      prevFirst != null &&
+      first < prevFirst &&
+      last === prevLast;
+    const tail =
+      !seriesReset &&
+      !fitChanged &&
+      !prepended &&
+      previous.length > 0 &&
+      first === prevFirst &&
+      candles.length >= previous.length &&
+      candles.length - previous.length <= 2;
+
+    const showSpan = () => {
+      showLoadedSpan(chart, candles, span, interval, adjustingRef);
+    };
+
+    if (candles.length === 0) {
+      previousRef.current = candles;
+      return;
+    }
+
+    if (fitChanged) {
+      setSeriesData(seriesRef.current, candles, colors);
+      showSpan();
+      fitKeyRef.current = fitKey;
+      chainRef.current = 0;
+      hoverRef.current(null);
+      window.requestAnimationFrame(() => requestHistoryRef.current());
+    } else if (prepended) {
+      const visible = chart.timeScale().getVisibleLogicalRange();
+      setSeriesData(seriesRef.current, candles, colors);
+      const added = candles.length - previous.length;
+      if (visible) {
+        adjustingRef.current = true;
+        chart.timeScale().setVisibleLogicalRange({
+          from: visible.from + added,
+          to: visible.to + added,
+        });
+        adjustingRef.current = false;
+      }
+      window.requestAnimationFrame(() => requestHistoryRef.current());
+    } else if (tail) {
+      updateTail(seriesRef.current, candles, Math.max(0, previous.length - 1), colors);
+    } else {
+      const visible = chart.timeScale().getVisibleLogicalRange();
+      setSeriesData(seriesRef.current, candles, colors);
+      if (visible && previous.length > 0) {
+        adjustingRef.current = true;
+        chart.timeScale().setVisibleLogicalRange(visible);
+        adjustingRef.current = false;
+      }
+    }
+
+    previousRef.current = candles;
+  }, [candles, fitId, interval, mode, positive, precision, showVolume, span, theme]);
 
   return (
     <div ref={containerRef} className="h-full min-h-[240px] w-full overflow-hidden bg-background md:min-h-[280px]" />

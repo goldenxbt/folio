@@ -1,104 +1,45 @@
-export const RANGES = [
-  {
-    id: "1m",
-    label: "1m",
-    krakenInterval: 1,
-    coinbaseGranularity: 60,
-    windowSec: 12 * 60 * 60,
-    interval: "1-minute",
-  },
-  {
-    id: "5m",
-    label: "5m",
-    krakenInterval: 5,
-    coinbaseGranularity: 300,
-    windowSec: 48 * 60 * 60,
-    interval: "5-minute",
-  },
-  {
-    id: "1D",
-    label: "1D",
-    krakenInterval: 15,
-    coinbaseGranularity: 900,
-    windowSec: 24 * 60 * 60,
-    interval: "15-minute",
-  },
-  {
-    id: "15m",
-    label: "15m",
-    krakenInterval: 15,
-    coinbaseGranularity: 900,
-    windowSec: 5 * 24 * 60 * 60,
-    interval: "15-minute",
-  },
-  {
-    id: "7D",
-    label: "7D",
-    krakenInterval: 60,
-    coinbaseGranularity: 3600,
-    windowSec: 7 * 24 * 60 * 60,
-    interval: "1-hour",
-  },
-  {
-    id: "1H",
-    label: "1H",
-    krakenInterval: 60,
-    coinbaseGranularity: 3600,
-    windowSec: 14 * 24 * 60 * 60,
-    interval: "1-hour",
-  },
-  {
-    id: "1M",
-    label: "1M",
-    krakenInterval: 240,
-    coinbaseGranularity: 21600,
-    windowSec: 30 * 24 * 60 * 60,
-    interval: "4-hour",
-  },
-  {
-    id: "4H",
-    label: "4H",
-    krakenInterval: 240,
-    coinbaseGranularity: 21600,
-    windowSec: 90 * 24 * 60 * 60,
-    interval: "4-hour",
-  },
-  {
-    id: "3M",
-    label: "3M",
-    krakenInterval: 1440,
-    coinbaseGranularity: 86400,
-    windowSec: 90 * 24 * 60 * 60,
-    interval: "daily",
-  },
-  {
-    id: "6M",
-    label: "6M",
-    krakenInterval: 1440,
-    coinbaseGranularity: 86400,
-    windowSec: 180 * 24 * 60 * 60,
-    interval: "daily",
-  },
-  {
-    id: "1Y",
-    label: "1Y",
-    krakenInterval: 1440,
-    coinbaseGranularity: 86400,
-    windowSec: 365 * 24 * 60 * 60,
-    interval: "daily",
-  },
-  {
-    id: "5Y",
-    label: "5Y",
-    krakenInterval: 10080,
-    coinbaseGranularity: 86400,
-    windowSec: 5 * 365 * 24 * 60 * 60,
-    interval: "weekly",
-  },
+export const INTERVALS = [
+  { id: "1m", label: "1m", krakenInterval: 1, coinbaseGranularity: 60, seconds: 60, name: "1-minute" },
+  { id: "5m", label: "5m", krakenInterval: 5, coinbaseGranularity: 300, seconds: 300, name: "5-minute" },
+  { id: "15m", label: "15m", krakenInterval: 15, coinbaseGranularity: 900, seconds: 900, name: "15-minute" },
+  { id: "1H", label: "1H", krakenInterval: 60, coinbaseGranularity: 3600, seconds: 3_600, name: "1-hour" },
+  { id: "4H", label: "4H", krakenInterval: 240, coinbaseGranularity: 3600, seconds: 14_400, name: "4-hour" },
+  { id: "1D", label: "1D", krakenInterval: 1440, coinbaseGranularity: 86_400, seconds: 86_400, name: "daily" },
+  { id: "1W", label: "1W", krakenInterval: 10080, coinbaseGranularity: 86_400, seconds: 604_800, name: "weekly" },
 ] as const;
 
-export type RangeId = (typeof RANGES)[number]["id"];
-export type RangeSpec = (typeof RANGES)[number];
+export const SPANS = [
+  { id: "1H", label: "1H", windowSec: 60 * 60 },
+  { id: "4H", label: "4H", windowSec: 4 * 60 * 60 },
+  { id: "12H", label: "12H", windowSec: 12 * 60 * 60 },
+  { id: "1D", label: "1D", windowSec: 24 * 60 * 60 },
+  { id: "7D", label: "7D", windowSec: 7 * 24 * 60 * 60 },
+  { id: "1M", label: "1M", windowSec: 30 * 24 * 60 * 60 },
+  { id: "3M", label: "3M", windowSec: 90 * 24 * 60 * 60 },
+  { id: "6M", label: "6M", windowSec: 180 * 24 * 60 * 60 },
+  { id: "1Y", label: "1Y", windowSec: 365 * 24 * 60 * 60 },
+  { id: "5Y", label: "5Y", windowSec: 5 * 365 * 24 * 60 * 60 },
+] as const;
+
+export type IntervalId = (typeof INTERVALS)[number]["id"];
+export type IntervalSpec = (typeof INTERVALS)[number];
+export type SpanId = (typeof SPANS)[number]["id"];
+export type SpanSpec = (typeof SPANS)[number];
+
+const LEGACY_RANGE: Record<string, { interval: IntervalId; span: SpanId }> = {
+  "1m": { interval: "1m", span: "12H" },
+  "5m": { interval: "5m", span: "7D" },
+  "15m": { interval: "15m", span: "7D" },
+  "1H": { interval: "1H", span: "1M" },
+  "4H": { interval: "4H", span: "3M" },
+  "1D": { interval: "15m", span: "1D" },
+  "7D": { interval: "1H", span: "7D" },
+  "1M": { interval: "4H", span: "1M" },
+  "3M": { interval: "1D", span: "3M" },
+  "6M": { interval: "1D", span: "6M" },
+  "1Y": { interval: "1D", span: "1Y" },
+  "5Y": { interval: "1W", span: "5Y" },
+};
 
 export type Coin = {
   id: string;
@@ -136,19 +77,28 @@ export const COINS: readonly Coin[] = [
 ];
 
 const coinById = new Map(COINS.map((coin) => [coin.id, coin]));
-const rangeById = new Map(RANGES.map((range) => [range.id, range]));
+const intervalById = new Map(INTERVALS.map((interval) => [interval.id, interval]));
+const spanById = new Map(SPANS.map((span) => [span.id, span]));
 
 export function getCoin(id: string): Coin | null {
   return coinById.get(id) ?? null;
 }
 
-export function getRange(id: string): RangeSpec | null {
-  return rangeById.get(id as RangeId) ?? null;
+export function getInterval(id: string): IntervalSpec | null {
+  return intervalById.get(id as IntervalId) ?? null;
 }
 
-export function rangeShowsClock(id: string): boolean {
-  const range = getRange(id);
-  return range != null && range.windowSec <= 14 * 24 * 60 * 60;
+export function getSpan(id: string): SpanSpec | null {
+  return spanById.get(id as SpanId) ?? null;
+}
+
+export function legacyRange(id: string): { interval: IntervalId; span: SpanId } | null {
+  return LEGACY_RANGE[id] ?? null;
+}
+
+export function intervalShowsClock(id: string): boolean {
+  const interval = getInterval(id);
+  return interval != null && interval.seconds < 24 * 60 * 60;
 }
 
 export const RATIO_PRESETS = [

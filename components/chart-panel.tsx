@@ -1,10 +1,21 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { COINS, RANGES, getCoin, rangeShowsClock, type RangeId } from "@/lib/coins";
+import { applyTrade, mergeCandles } from "@/lib/candles";
+import {
+  COINS,
+  INTERVALS,
+  SPANS,
+  getCoin,
+  getInterval,
+  getSpan,
+  intervalShowsClock,
+  type IntervalId,
+  type SpanId,
+} from "@/lib/coins";
 import {
   formatBarTime,
   formatCompactUsd,
@@ -37,7 +48,8 @@ type ChartPanelProps = {
   id: string;
   coinId: string;
   versusId: string | null;
-  range: RangeId;
+  interval: IntervalId;
+  span: SpanId;
   mode: ChartMode;
   active: boolean;
   canClose: boolean;
@@ -46,7 +58,8 @@ type ChartPanelProps = {
   versusQuote: Quote | null;
   onActivate: () => void;
   onClose: () => void;
-  onRange: (range: RangeId) => void;
+  onInterval: (interval: IntervalId) => void;
+  onSpan: (span: SpanId) => void;
   onMode: (mode: ChartMode) => void;
   onVersus: (versusId: string | null) => void;
   occupiedKeys: string[];
@@ -56,25 +69,12 @@ type CandleState = {
   key: string;
   candles: Candle[] | null;
   source: MarketSource | null;
-  interval: string;
+  intervalName: string;
   loading: boolean;
   error: string | null;
+  exhausted: boolean;
+  loadingOlder: boolean;
 };
-
-function withLiveClose(candles: Candle[], price: number | null): Candle[] {
-  if (price == null || candles.length === 0) return candles;
-  const last = candles[candles.length - 1];
-  if (last.close <= 0) return candles;
-  if (Math.abs(price - last.close) / last.close > 0.15) return candles;
-  const next = candles.slice();
-  next[next.length - 1] = {
-    ...last,
-    close: price,
-    high: Math.max(last.high, price),
-    low: Math.min(last.low, price),
-  };
-  return next;
-}
 
 function rangeExtremes(candles: Candle[] | null): { high: number; low: number } | null {
   if (!candles || candles.length === 0) return null;
@@ -134,7 +134,8 @@ export function ChartPanel({
   id,
   coinId,
   versusId,
-  range,
+  interval,
+  span,
   mode,
   active,
   canClose,
@@ -143,33 +144,41 @@ export function ChartPanel({
   versusQuote,
   onActivate,
   onClose,
-  onRange,
+  onInterval,
+  onSpan,
   onMode,
   onVersus,
   occupiedKeys,
 }: ChartPanelProps) {
   const coin = getCoin(coinId);
   const versus = versusId ? getCoin(versusId) : null;
+  const intervalSpec = getInterval(interval);
+  const spanSpec = getSpan(span);
   const [retry, setRetry] = useState(0);
   const [hover, setHover] = useState<Candle | null>(null);
-  const requestKey = `${coinId}:${versus?.id ?? "usd"}:${range}:${retry}`;
+  const requestKey = `${coinId}:${versus?.id ?? "usd"}:${interval}:${retry}`;
   const [state, setState] = useState<CandleState>({
     key: "",
     candles: null,
     source: null,
-    interval: "",
+    intervalName: "",
     loading: true,
     error: null,
+    exhausted: false,
+    loadingOlder: false,
   });
+  const olderRef = useRef<AbortController | null>(null);
 
   if (state.key !== requestKey) {
     setState({
       key: requestKey,
       candles: null,
       source: null,
-      interval: "",
+      intervalName: "",
       loading: true,
       error: null,
+      exhausted: false,
+      loadingOlder: false,
     });
   }
 
@@ -177,9 +186,9 @@ export function ChartPanel({
     const controller = new AbortController();
     let hasData = false;
 
-    async function load() {
+    async function load(replace: boolean) {
       try {
-        const params = new URLSearchParams({ coin: coinId, range });
+        const params = new URLSearchParams({ coin: coinId, interval, span });
         if (versus?.id) params.set("versus", versus.id);
         const response = await fetch(`/api/candles?${params}`, {
           signal: controller.signal,
@@ -194,36 +203,90 @@ export function ChartPanel({
         const candles = parseCandles(body.candles);
         if (!candles) throw new Error("invalid");
         hasData = true;
-        setState({
-          key: requestKey,
-          candles,
-          source: body.source ?? null,
-          interval: typeof body.interval === "string" ? body.interval : "",
-          loading: false,
-          error: null,
+        setState((current) => {
+          if (current.key !== requestKey) return current;
+          return {
+            ...current,
+            candles: replace || !current.candles ? candles : mergeCandles(current.candles, candles),
+            source: body.source ?? current.source,
+            intervalName: typeof body.interval === "string" ? body.interval : current.intervalName,
+            loading: false,
+            error: null,
+          };
         });
       } catch {
         if (controller.signal.aborted || hasData) return;
-        setState({
-          key: requestKey,
-          candles: null,
-          source: null,
-          interval: "",
-          loading: false,
-          error: versus
-            ? "Couldn’t load candles for this pair."
-            : "Couldn’t load candles for this market.",
+        setState((current) => {
+          if (current.key !== requestKey || current.candles) return current;
+          return {
+            ...current,
+            loading: false,
+            error: versus
+              ? "Couldn’t load candles for this pair."
+              : "Couldn’t load candles for this market.",
+          };
         });
       }
     }
 
-    void load();
-    const timer = window.setInterval(() => void load(), 60_000);
+    void load(false);
+    const timer = window.setInterval(() => void load(false), 20_000);
     return () => {
       controller.abort();
       window.clearInterval(timer);
+      olderRef.current?.abort();
+      olderRef.current = null;
     };
-  }, [coinId, range, requestKey, versus]);
+  }, [coinId, interval, requestKey, span, versus]);
+
+  const loadOlder = useMemo(() => {
+    return () => {
+      const loaded = state.candles;
+      const first = loaded?.[0];
+      if (!loaded || !first || state.exhausted || state.loadingOlder || olderRef.current) return;
+      if (loaded.length >= 12_000) return;
+      const controller = new AbortController();
+      olderRef.current = controller;
+      setState((current) => ({ ...current, loadingOlder: true }));
+
+      const params = new URLSearchParams({
+        coin: coinId,
+        interval,
+        before: String(first.time),
+      });
+      if (versus?.id) params.set("versus", versus.id);
+
+      void fetch(`/api/candles?${params}`, { signal: controller.signal })
+        .then(async (response) => {
+          if (!response.ok) throw new Error("unavailable");
+          const body = (await response.json()) as { candles?: unknown };
+          const older = parseCandles(body.candles) ?? [];
+          if (controller.signal.aborted) return;
+          setState((current) => {
+            if (current.key !== requestKey || !current.candles) return current;
+            const earliest = current.candles[0]?.time ?? first.time;
+            const fresh = older.filter((candle) => candle.time < earliest);
+            if (fresh.length === 0) {
+              return { ...current, exhausted: true, loadingOlder: false };
+            }
+            return {
+              ...current,
+              candles: mergeCandles(fresh, current.candles),
+              loadingOlder: false,
+            };
+          });
+        })
+        .catch(() => {
+          if (controller.signal.aborted) return;
+          setState((current) =>
+            current.key === requestKey ? { ...current, loadingOlder: false } : current,
+          );
+        })
+        .finally(() => {
+          if (olderRef.current === controller) olderRef.current = null;
+        });
+    };
+  }, [coinId, interval, requestKey, state.candles, state.exhausted, state.loadingOlder, versus]);
 
   const livePrice =
     versus && quote?.price != null && versusQuote?.price != null && versusQuote.price > 0
@@ -231,14 +294,23 @@ export function ChartPanel({
       : versus
         ? null
         : (quote?.price ?? null);
-  const candles = useMemo(
-    () => (state.candles ? withLiveClose(state.candles, livePrice) : null),
-    [livePrice, state.candles],
-  );
-  const move = rangeMove(candles);
-  const extremes = rangeExtremes(candles);
+  const tradeAt = Math.max(quote?.tradedAt ?? 0, versusQuote?.tradedAt ?? 0);
+  const candles = useMemo(() => {
+    if (!state.candles || livePrice == null || !intervalSpec) return state.candles;
+    const stamp = tradeAt > 0 ? tradeAt : (state.candles.at(-1)?.time ?? 0);
+    return applyTrade(state.candles, livePrice, stamp, intervalSpec.seconds);
+  }, [intervalSpec, livePrice, state.candles, tradeAt]);
+  const visibleCandles = useMemo(() => {
+    if (!candles || !spanSpec) return candles;
+    const end = candles[candles.length - 1]?.time;
+    if (end == null) return candles;
+    const sliced = candles.filter((candle) => candle.time >= end - spanSpec.windowSec);
+    return sliced.length >= 2 ? sliced : candles;
+  }, [candles, spanSpec]);
+  const move = rangeMove(visibleCandles);
+  const extremes = rangeExtremes(visibleCandles);
   const price = livePrice ?? candles?.at(-1)?.close ?? null;
-  const showTime = rangeShowsClock(range);
+  const showTime = intervalShowsClock(interval);
   const formatValue = versus ? formatRatio : formatUsd;
   const formatSigned = versus ? formatSignedRatio : formatSignedUsd;
 
@@ -254,7 +326,7 @@ export function ChartPanel({
       onClick={onActivate}
       onFocus={onActivate}
       className={cn(
-        "flex h-auto min-h-[520px] flex-col border-b border-border bg-background md:h-full md:min-h-0 md:border-r",
+        "flex h-auto min-h-[580px] flex-col border-b border-border bg-background md:h-full md:min-h-0 md:border-r",
         active && "shadow-[inset_0_2px_0_var(--foreground)]",
       )}
     >
@@ -309,7 +381,9 @@ export function ChartPanel({
               "Waiting for the first candles"
             )}
             <span className="ml-2 text-muted-foreground">
-              {versus ? `${versus.symbol} per 1 ${coin.symbol} · ${range}` : range}
+              {versus
+                ? `${versus.symbol} per 1 ${coin.symbol} · ${spanSpec?.label ?? span}`
+                : (spanSpec?.label ?? span)}
             </span>
           </p>
         </div>
@@ -332,10 +406,13 @@ export function ChartPanel({
         {versus ? (
           <>
             <Stat
-              label={`${range} high`}
+              label={`${spanSpec?.label ?? span} high`}
               value={extremes ? formatRatio(extremes.high) : "—"}
             />
-            <Stat label={`${range} low`} value={extremes ? formatRatio(extremes.low) : "—"} />
+            <Stat
+              label={`${spanSpec?.label ?? span} low`}
+              value={extremes ? formatRatio(extremes.low) : "—"}
+            />
             <Stat
               label={coin.symbol}
               value={quote?.price == null ? "—" : formatUsd(quote.price)}
@@ -361,34 +438,73 @@ export function ChartPanel({
         )}
       </dl>
 
-      <div className="mt-4 flex min-w-0 items-center justify-between gap-4 px-4 md:px-5">
-        <div
-          role="radiogroup"
-          aria-label={`${coin.name} range`}
-          className="flex min-w-0 flex-1 gap-3 overflow-x-auto"
-        >
-          {RANGES.map((item) => (
-            <Button
-              key={item.id}
-              variant="ghost"
-              size="xs"
-              role="radio"
-              aria-checked={range === item.id}
-              className={cn(
-                "h-auto shrink-0 rounded-none px-0 text-sm hover:bg-transparent",
-                range === item.id
-                  ? "text-foreground underline decoration-2 underline-offset-[7px]"
-                  : "text-muted-foreground",
-              )}
-              onClick={(event) => {
-                event.stopPropagation();
-                onRange(item.id);
-              }}
-            >
-              {item.label}
-            </Button>
-          ))}
+      <div className="mt-4 flex flex-col gap-2 px-4 md:px-5">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="w-14 shrink-0 text-[11px] font-medium tracking-[0.14em] text-muted-foreground uppercase">
+            Span
+          </span>
+          <div
+            role="radiogroup"
+            aria-label={`${coin.name} chart span`}
+            className="flex min-w-0 flex-1 gap-3 overflow-x-auto"
+          >
+            {SPANS.map((item) => (
+              <Button
+                key={item.id}
+                variant="ghost"
+                size="xs"
+                role="radio"
+                aria-checked={span === item.id}
+                className={cn(
+                  "h-auto shrink-0 rounded-none px-0 text-sm hover:bg-transparent",
+                  span === item.id
+                    ? "text-foreground underline decoration-2 underline-offset-[7px]"
+                    : "text-muted-foreground",
+                )}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onSpan(item.id);
+                }}
+              >
+                {item.label}
+              </Button>
+            ))}
+          </div>
         </div>
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="w-14 shrink-0 text-[11px] font-medium tracking-[0.14em] text-muted-foreground uppercase">
+            Candle
+          </span>
+          <div
+            role="radiogroup"
+            aria-label={`${coin.name} candle size`}
+            className="flex min-w-0 flex-1 gap-3 overflow-x-auto"
+          >
+            {INTERVALS.map((item) => (
+              <Button
+                key={item.id}
+                variant="ghost"
+                size="xs"
+                role="radio"
+                aria-checked={interval === item.id}
+                className={cn(
+                  "h-auto shrink-0 rounded-none px-0 text-sm hover:bg-transparent",
+                  interval === item.id
+                    ? "text-foreground underline decoration-2 underline-offset-[7px]"
+                    : "text-muted-foreground",
+                )}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onInterval(item.id);
+                }}
+              >
+                {item.label}
+              </Button>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className="mt-1 flex justify-end px-4 md:px-5">
         <div role="radiogroup" aria-label={`${coin.name} chart type`} className="flex shrink-0 gap-4">
           {(
             [
@@ -449,9 +565,12 @@ export function ChartPanel({
             mode={mode}
             positive={(move?.percent ?? 0) >= 0}
             fitId={`${coinId}:${versus?.id ?? "usd"}`}
-            range={range}
+            interval={interval}
+            span={span}
             showVolume={!versus}
             formatPrice={formatValue}
+            historyDone={state.exhausted}
+            onNeedHistory={loadOlder}
             onHover={setHover}
           />
         )}
@@ -468,8 +587,12 @@ export function ChartPanel({
           </span>
         ) : (
           <span>
-            {state.interval ? `${state.interval} candles` : "Candles"}
-            {state.source ? ` · ${SOURCE_NAME[state.source]}` : ""}
+            {state.loadingOlder
+              ? "Loading older candles"
+              : state.exhausted
+                ? "No older candles"
+                : `${state.intervalName || "Candles"} candles`}
+            {state.source && !state.loadingOlder ? ` · ${SOURCE_NAME[state.source]}` : ""}
           </span>
         )}
         <span className="hidden sm:inline">Scroll to zoom</span>

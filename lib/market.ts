@@ -1,4 +1,5 @@
-import { COINS, type Coin, type RangeSpec } from "@/lib/coins";
+import { aggregateCandles, mergeCandles } from "@/lib/candles";
+import { COINS, type Coin, type IntervalSpec } from "@/lib/coins";
 import type { Candle, MarketSource, Quote } from "@/lib/types";
 
 const ALLOWED_HOSTS = new Set([
@@ -169,16 +170,16 @@ function normalizeCandles(
   return [...byTime.values()].sort((a, b) => a.time - b.time);
 }
 
-function windowCandles(candles: Candle[], windowSec: number): Candle[] {
-  if (candles.length === 0) return candles;
-  const end = candles[candles.length - 1].time;
-  const sliced = candles.filter((candle) => candle.time >= end - windowSec);
-  return sliced.length >= 8 ? sliced : candles;
+const COINBASE_PAGE = 300;
+const MAX_OLDER_PAGES = 6;
+
+async function candlesFromKraken(coin: Coin, interval: IntervalSpec): Promise<Candle[]> {
+  return cached(`kraken-ohlc:${coin.id}:${interval.id}`, 15_000, () => krakenOhlc(coin, interval));
 }
 
-async function candlesFromKraken(coin: Coin, range: RangeSpec): Promise<Candle[]> {
+async function krakenOhlc(coin: Coin, interval: IntervalSpec): Promise<Candle[]> {
   const payload = await getJson(
-    `https://api.kraken.com/0/public/OHLC?pair=${coin.kraken}&interval=${range.krakenInterval}`,
+    `https://api.kraken.com/0/public/OHLC?pair=${coin.kraken}&interval=${interval.krakenInterval}`,
   );
   if (!payload || typeof payload !== "object") throw new Error("Unexpected candle payload");
   const body = payload as { error?: unknown; result?: Record<string, unknown> };
@@ -191,7 +192,7 @@ async function candlesFromKraken(coin: Coin, range: RangeSpec): Promise<Candle[]
   const rows = key ? result[key] : null;
   if (!Array.isArray(rows)) throw new Error("Unexpected candle payload");
 
-  const candles = normalizeCandles(
+  return normalizeCandles(
     rows.map((row) => {
       const values = Array.isArray(row) ? row : [];
       return {
@@ -204,16 +205,20 @@ async function candlesFromKraken(coin: Coin, range: RangeSpec): Promise<Candle[]
       };
     }),
   );
-  return windowCandles(candles, range.windowSec);
 }
 
-async function candlesFromCoinbase(coin: Coin, range: RangeSpec): Promise<Candle[]> {
+async function coinbaseChunk(
+  coin: Coin,
+  granularity: number,
+  start: number,
+  end: number,
+): Promise<Candle[]> {
   const payload = await getJson(
-    `https://api.exchange.coinbase.com/products/${coin.coinbase}/candles?granularity=${range.coinbaseGranularity}`,
+    `https://api.exchange.coinbase.com/products/${coin.coinbase}/candles?granularity=${granularity}&start=${encodeURIComponent(new Date(start * 1000).toISOString())}&end=${encodeURIComponent(new Date(end * 1000).toISOString())}`,
   );
   if (!Array.isArray(payload)) throw new Error("Unexpected Coinbase payload");
 
-  const candles = normalizeCandles(
+  return normalizeCandles(
     payload.map((row) => {
       const values = Array.isArray(row) ? row : [];
       return {
@@ -226,27 +231,101 @@ async function candlesFromCoinbase(coin: Coin, range: RangeSpec): Promise<Candle
       };
     }),
   );
-  return windowCandles(candles, range.windowSec);
+}
+
+async function coinbaseHistory(
+  coin: Coin,
+  interval: IntervalSpec,
+  start: number,
+  end: number,
+  pages: number,
+): Promise<Candle[]> {
+  const granularity = interval.coinbaseGranularity;
+  const raw: Candle[] = [];
+  let cursor = end;
+  let fetched = 0;
+
+  while (cursor > start && fetched < pages) {
+    const pageStart = Math.max(start, cursor - granularity * COINBASE_PAGE);
+    const page = await coinbaseChunk(coin, granularity, pageStart, cursor);
+    raw.push(...page);
+    fetched += 1;
+    if (page.length === 0) break;
+    const oldest = page.reduce((min, candle) => Math.min(min, candle.time), cursor);
+    if (oldest >= cursor) break;
+    cursor = oldest;
+  }
+
+  const merged = mergeCandles([], raw);
+  if (granularity === interval.seconds) return merged;
+  return aggregateCandles(merged, interval.seconds);
+}
+
+async function loadCandles(
+  coin: Coin,
+  interval: IntervalSpec,
+  earliest: number,
+  before: number | null,
+): Promise<{ source: MarketSource; candles: Candle[] }> {
+  let recent: Candle[] = [];
+  try {
+    recent = await candlesFromKraken(coin, interval);
+  } catch {
+    recent = [];
+  }
+
+  if (before != null) {
+    const olderRecent = recent.filter((candle) => candle.time < before);
+    if (olderRecent.length > 0) return { source: "kraken", candles: olderRecent };
+    try {
+      const candles = await coinbaseHistory(
+        coin,
+        interval,
+        before - interval.coinbaseGranularity * COINBASE_PAGE,
+        before,
+        1,
+      );
+      return {
+        source: "coinbase",
+        candles: candles.filter((candle) => candle.time < before),
+      };
+    } catch {
+      return { source: recent.length > 0 ? "kraken" : "coinbase", candles: [] };
+    }
+  }
+
+  if (recent.length < 8) {
+    const now = Math.floor(Date.now() / 1000);
+    const candles = await coinbaseHistory(coin, interval, earliest, now, MAX_OLDER_PAGES);
+    if (candles.length < 8) throw new Error("Candle history unavailable");
+    return { source: "coinbase", candles };
+  }
+
+  const first = recent[0]?.time ?? earliest;
+  if (first <= earliest) return { source: "kraken", candles: recent };
+
+  try {
+    const older = await coinbaseHistory(coin, interval, earliest, first, MAX_OLDER_PAGES);
+    const recentTimes = new Set(recent.map((candle) => candle.time));
+    const extra = older.filter((candle) => !recentTimes.has(candle.time) && candle.time < first);
+    return { source: "kraken", candles: mergeCandles(extra, recent) };
+  } catch {
+    return { source: "kraken", candles: recent };
+  }
 }
 
 export async function getCandles(
   coin: Coin,
-  range: RangeSpec,
+  interval: IntervalSpec,
+  earliest: number,
+  before: number | null,
 ): Promise<{ source: MarketSource; candles: Candle[] }> {
-  return cached(`candles:${coin.id}:${range.id}`, 45_000, async () => {
-    const errors: string[] = [];
-    try {
-      const candles = await candlesFromKraken(coin, range);
-      if (candles.length >= 8) return { source: "kraken" as const, candles };
-      errors.push("Kraken returned too little history");
-    } catch {
-      errors.push("Kraken unavailable");
-    }
-
-    const candles = await candlesFromCoinbase(coin, range);
-    if (candles.length >= 8) return { source: "coinbase" as const, candles };
-    throw new Error("Candle history unavailable");
-  });
+  const aligned = earliest - (earliest % interval.seconds);
+  const key = before == null
+    ? `candles:${coin.id}:${interval.id}:from:${aligned}`
+    : `candles:${coin.id}:${interval.id}:before:${before}`;
+  const ttl = before == null ? 15_000 : 120_000;
+  return cached(key, ttl, () => loadCandles(coin, interval, aligned, before));
 }
 
 export function divideCandles(base: Candle[], quote: Candle[]): Candle[] {
@@ -270,10 +349,15 @@ export function divideCandles(base: Candle[], quote: Candle[]): Candle[] {
 export async function getRatioCandles(
   base: Coin,
   quote: Coin,
-  range: RangeSpec,
+  interval: IntervalSpec,
+  earliest: number,
+  before: number | null,
 ): Promise<{ source: MarketSource; candles: Candle[] }> {
-  const [left, right] = await Promise.all([getCandles(base, range), getCandles(quote, range)]);
+  const [left, right] = await Promise.all([
+    getCandles(base, interval, earliest, before),
+    getCandles(quote, interval, earliest, before),
+  ]);
   const candles = divideCandles(left.candles, right.candles);
-  if (candles.length < 8) throw new Error("Ratio history unavailable");
+  if (before == null && candles.length < 8) throw new Error("Ratio history unavailable");
   return { source: left.source, candles };
 }

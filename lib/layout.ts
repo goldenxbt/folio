@@ -1,4 +1,4 @@
-import { getCoin, getRange, type RangeId } from "@/lib/coins";
+import { getCoin, getInterval, getSpan, legacyRange, type IntervalId, type SpanId } from "@/lib/coins";
 
 export const MAX_CHARTS = 4;
 export const LAYOUT_KEY = "folio-layout-v1";
@@ -8,7 +8,8 @@ export type ChartMode = "candle" | "line";
 export type ChartSlot = {
   id: string;
   coinId: string;
-  range: RangeId;
+  interval: IntervalId;
+  span: SpanId;
   mode: ChartMode;
   versusId: string | null;
 };
@@ -25,7 +26,7 @@ export function marketKey(coinId: string, versusId: string | null): string {
 
 export function defaultLayout(): Layout {
   return {
-    charts: [{ id: "btc", coinId: "bitcoin", range: "1D", mode: "candle", versusId: null }],
+    charts: [{ id: "btc", coinId: "bitcoin", interval: "15m", span: "1D", mode: "candle", versusId: null }],
     activeId: "btc",
     sidebarOpen: true,
   };
@@ -42,10 +43,11 @@ export function sanitizeLayout(value: unknown): Layout {
   const seen = new Set<string>();
   for (const item of raw.charts) {
     if (!item || typeof item !== "object") continue;
-    const slot = item as Partial<ChartSlot>;
+    const slot = item as Partial<ChartSlot> & { range?: unknown };
     if (typeof slot.id !== "string" || slot.id.length > 80) continue;
     if (typeof slot.coinId !== "string" || !getCoin(slot.coinId)) continue;
-    if (typeof slot.range !== "string" || !getRange(slot.range)) continue;
+    const view = readWindow(slot);
+    if (!view) continue;
     if (slot.mode !== "candle" && slot.mode !== "line") continue;
     const versusId =
       typeof slot.versusId === "string" &&
@@ -59,7 +61,8 @@ export function sanitizeLayout(value: unknown): Layout {
     charts.push({
       id: slot.id,
       coinId: slot.coinId,
-      range: slot.range,
+      interval: view.interval,
+      span: view.span,
       mode: slot.mode,
       versusId,
     });
@@ -71,6 +74,19 @@ export function sanitizeLayout(value: unknown): Layout {
     ? (raw.activeId as string)
     : charts[0].id;
   return { charts, activeId, sidebarOpen: raw.sidebarOpen !== false };
+}
+
+function readWindow(slot: { interval?: unknown; span?: unknown; range?: unknown }): {
+  interval: IntervalId;
+  span: SpanId;
+} | null {
+  if (typeof slot.interval === "string" && typeof slot.span === "string") {
+    const interval = getInterval(slot.interval);
+    const span = getSpan(slot.span);
+    if (interval && span) return { interval: interval.id, span: span.id };
+  }
+  if (typeof slot.range === "string") return legacyRange(slot.range);
+  return null;
 }
 
 const LAYOUT_EVENT = "folio-layout";

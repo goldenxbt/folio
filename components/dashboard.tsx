@@ -46,6 +46,7 @@ export function Dashboard() {
         high24h: tick.high24h ?? quote.high24h,
         low24h: tick.low24h ?? quote.low24h,
         volume24h: tick.volume24h ?? quote.volume24h,
+        tradedAt: tick.tradedAt,
       };
     });
   }
@@ -172,7 +173,7 @@ export function Dashboard() {
     const id = crypto.randomUUID();
     update({
       ...layout,
-      charts: [...layout.charts, { id, coinId, range: "1m", mode: "candle", versusId: null }],
+      charts: [...layout.charts, { id, coinId, interval: "1m", span: "12H", mode: "candle", versusId: null }],
       activeId: id,
     });
     reveal(id);
@@ -212,12 +213,13 @@ export function Dashboard() {
 
   function patchChart(
     id: string,
-    patch: Partial<Pick<Layout["charts"][number], "range" | "mode" | "versusId">>,
+    patch: Partial<Pick<Layout["charts"][number], "interval" | "span" | "mode" | "versusId">>,
   ) {
+    const latest = parseStoredLayout(readLayoutSnapshot());
     update({
-      ...layout,
+      ...latest,
       activeId: id,
-      charts: layout.charts.map((chart) => (chart.id === id ? { ...chart, ...patch } : chart)),
+      charts: latest.charts.map((chart) => (chart.id === id ? { ...chart, ...patch } : chart)),
     });
   }
 
@@ -334,7 +336,7 @@ export function Dashboard() {
         <div
           className={
             layout.charts.length > 1
-              ? "grid min-h-0 flex-1 grid-cols-1 overflow-auto md:grid-cols-2 md:auto-rows-[minmax(680px,1fr)]"
+              ? "grid min-h-0 flex-1 grid-cols-1 overflow-auto md:grid-cols-2 md:auto-rows-[minmax(740px,1fr)]"
               : "grid min-h-0 flex-1 grid-cols-1 grid-rows-1"
           }
         >
@@ -344,7 +346,8 @@ export function Dashboard() {
               id={chart.id}
               coinId={chart.coinId}
               versusId={chart.versusId}
-              range={chart.range}
+              interval={chart.interval}
+              span={chart.span}
               mode={chart.mode}
               active={chart.id === layout.activeId}
               canClose={layout.charts.length > 1}
@@ -353,7 +356,8 @@ export function Dashboard() {
               versusQuote={chart.versusId ? (quoteById.get(chart.versusId) ?? null) : null}
               onActivate={() => update({ ...layout, activeId: chart.id })}
               onClose={() => closeChart(chart.id)}
-              onRange={(range) => patchChart(chart.id, { range })}
+              onInterval={(interval) => patchChart(chart.id, { interval })}
+              onSpan={(span) => patchChart(chart.id, { span })}
               onMode={(mode) => setMode(chart.id, mode)}
               occupiedKeys={layout.charts
                 .filter((slot) => slot.id !== chart.id)

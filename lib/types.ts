@@ -18,6 +18,7 @@ export type Quote = {
   volume24h: number | null;
   marketCap: number | null;
   rank: number | null;
+  tradedAt?: number;
 };
 
 export type MarketSource = "coingecko" | "kraken" | "coinbase";
@@ -30,9 +31,10 @@ export type QuotesResponse = {
 
 export type CandlesResponse = {
   coin: string;
-  range: string;
+  interval: string;
+  intervalId: string;
+  span: string | null;
   versus: string | null;
   source: MarketSource;
-  interval: string;
   candles: Candle[];
 };
