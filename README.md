@@ -6,7 +6,7 @@ Open up to four charts. Click a coin to change the selected chart. Use the plus 
 
 Each chart can also be a ratio. Set “Priced in” to another coin, or pick a preset such as BTC/ETH or ETH/HYPE. The candles are the base coin’s dollar price divided by the quote coin’s dollar price, so ETH/HYPE is how much HYPE one ETH buys. Volume stays on USD charts only.
 
-Quotes come from CoinGecko. Candles come from Kraken, with Coinbase as a backup. No API key is required.
+Quotes start from CoinGecko, then the last price follows Kraken’s public trade ticker. Candles come from Kraken, with Coinbase as a backup. No API key is required.
 
 The open charts, the selected coin, each range, candle or line, any ratio, and whether the market list is hidden are saved in this browser. A refresh restores that layout. The light or dark theme is saved the same way. Use Dark in the header to switch, and Hide to collapse the market list.
 

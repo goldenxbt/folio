@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { PanelLeft, Plus } from "lucide-react";
 import { ChartPanel } from "@/components/chart-panel";
 import { MarketSidebar, MarketStrip } from "@/components/market-sidebar";
@@ -17,6 +17,7 @@ import {
   type ChartMode,
   type Layout,
 } from "@/lib/layout";
+import { subscribeTicker, type LiveTick } from "@/lib/live-ticker";
 import type { MarketSource, Quote, QuotesResponse } from "@/lib/types";
 
 export function Dashboard() {
@@ -31,6 +32,23 @@ export function Dashboard() {
   const [source, setSource] = useState<MarketSource | null>(null);
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [quoteRetry, setQuoteRetry] = useState(0);
+  const [live, setLive] = useState(false);
+  const liveTicks = useRef(new Map<string, LiveTick>());
+
+  function applyLive(quotes: Quote[]): Quote[] {
+    return quotes.map((quote) => {
+      const tick = liveTicks.current.get(quote.id);
+      if (!tick) return quote;
+      return {
+        ...quote,
+        price: tick.price,
+        change24h: tick.change24h ?? quote.change24h,
+        high24h: tick.high24h ?? quote.high24h,
+        low24h: tick.low24h ?? quote.low24h,
+        volume24h: tick.volume24h ?? quote.volume24h,
+      };
+    });
+  }
 
   useEffect(() => {
     const controller = new AbortController();
@@ -44,7 +62,7 @@ export function Dashboard() {
         if (controller.signal.aborted) return;
         if (!Array.isArray(body.quotes)) throw new Error("invalid");
         hasData = true;
-        setQuotes(body.quotes);
+        setQuotes(applyLive(body.quotes));
         setUpdatedAt(typeof body.updatedAt === "number" ? body.updatedAt : Date.now());
         setSource(body.source ?? null);
         setQuoteError(null);
@@ -55,12 +73,27 @@ export function Dashboard() {
     }
 
     void load();
-    const timer = window.setInterval(() => void load(), 20_000);
+    const timer = window.setInterval(() => void load(), 60_000);
     return () => {
       controller.abort();
       window.clearInterval(timer);
     };
   }, [quoteRetry]);
+
+  useEffect(() => {
+    let staleTimer = 0;
+    const stop = subscribeTicker((ticks) => {
+      for (const tick of ticks) liveTicks.current.set(tick.id, tick);
+      setLive(true);
+      setQuotes((current) => (current ? applyLive(current) : current));
+      window.clearTimeout(staleTimer);
+      staleTimer = window.setTimeout(() => setLive(false), 15_000);
+    });
+    return () => {
+      window.clearTimeout(staleTimer);
+      stop();
+    };
+  }, []);
 
   const quoteById = useMemo(() => {
     const map = new Map<string, Quote>();
@@ -221,6 +254,7 @@ export function Dashboard() {
           updatedAt={updatedAt}
           source={source}
           error={quoteError}
+          live={live}
           activeCoinId={active?.coinId ?? null}
           activeVersusId={active?.versusId ?? null}
           chartCount={layout.charts.length}

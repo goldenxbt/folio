@@ -9,7 +9,7 @@ export async function GET() {
       { updatedAt: Date.now(), source: result.source, quotes: result.quotes },
       {
         headers: {
-          "cache-control": "public, max-age=10, stale-while-revalidate=20",
+          "cache-control": "no-store",
         },
       },
     );
