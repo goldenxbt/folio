@@ -1,4 +1,4 @@
-import { aggregateCandles, mergeCandles } from "@/lib/candles";
+import { aggregateCandles, fillQuietMinutes, mergeCandles } from "@/lib/candles";
 import { COINS, type Coin, type IntervalSpec } from "@/lib/coins";
 import type { Candle, MarketSource, Quote } from "@/lib/types";
 
@@ -274,9 +274,10 @@ async function loadCandles(
     recent = [];
   }
 
+  const step = interval.seconds;
   if (before != null) {
     const olderRecent = recent.filter((candle) => candle.time < before);
-    if (olderRecent.length > 0) return { source: "kraken", candles: olderRecent };
+    if (olderRecent.length > 0) return { source: "kraken", candles: fillQuietMinutes(olderRecent, step) };
     try {
       const candles = await coinbaseHistory(
         coin,
@@ -287,7 +288,7 @@ async function loadCandles(
       );
       return {
         source: "coinbase",
-        candles: candles.filter((candle) => candle.time < before),
+        candles: fillQuietMinutes(candles.filter((candle) => candle.time < before), step),
       };
     } catch {
       return { source: recent.length > 0 ? "kraken" : "coinbase", candles: [] };
@@ -298,19 +299,19 @@ async function loadCandles(
     const now = Math.floor(Date.now() / 1000);
     const candles = await coinbaseHistory(coin, interval, earliest, now, MAX_OLDER_PAGES);
     if (candles.length < 8) throw new Error("Candle history unavailable");
-    return { source: "coinbase", candles };
+    return { source: "coinbase", candles: fillQuietMinutes(candles, step) };
   }
 
   const first = recent[0]?.time ?? earliest;
-  if (first <= earliest) return { source: "kraken", candles: recent };
+  if (first <= earliest) return { source: "kraken", candles: fillQuietMinutes(recent, step) };
 
   try {
     const older = await coinbaseHistory(coin, interval, earliest, first, MAX_OLDER_PAGES);
     const recentTimes = new Set(recent.map((candle) => candle.time));
     const extra = older.filter((candle) => !recentTimes.has(candle.time) && candle.time < first);
-    return { source: "kraken", candles: mergeCandles(extra, recent) };
+    return { source: "kraken", candles: fillQuietMinutes(mergeCandles(extra, recent), step) };
   } catch {
-    return { source: "kraken", candles: recent };
+    return { source: "kraken", candles: fillQuietMinutes(recent, step) };
   }
 }
 

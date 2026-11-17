@@ -137,7 +137,8 @@ function showLoadedSpan(
   if (!windowSec || candles.length === 0) return;
   const width = chart.timeScale().width();
   if (width < 32) return;
-  const wanted = Math.max(10, Math.round(windowSec / step));
+  const spanBars = Math.max(10, Math.round(windowSec / step));
+  const wanted = Math.min(spanBars, Math.max(candles.length, 10));
   const spacing = Math.min(14, Math.max(0.02, width / wanted));
   const visibleBars = width / spacing;
   const lastIndex = candles.length - 1;

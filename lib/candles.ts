@@ -28,6 +28,37 @@ export function aggregateCandles(candles: Candle[], step: number): Candle[] {
   return [...buckets.values()];
 }
 
+// Coinbase omits minutes with no trades. A few quiet minutes are not a halt,
+// so repeat the last close across them. Longer holes stay open.
+export function fillQuietMinutes(candles: Candle[], step: number): Candle[] {
+  if (step <= 0 || step > 15 * 60 || candles.length < 2) return candles;
+  const maxMissing = 5;
+  const filled: Candle[] = [candles[0]];
+  for (let index = 1; index < candles.length; index += 1) {
+    const next = candles[index];
+    const previous = filled[filled.length - 1];
+    const delta = next.time - previous.time;
+    if (delta > step && delta % step === 0) {
+      const missing = delta / step - 1;
+      if (missing <= maxMissing) {
+        for (let offset = 1; offset <= missing; offset += 1) {
+          const close = previous.close;
+          filled.push({
+            time: previous.time + step * offset,
+            open: close,
+            high: close,
+            low: close,
+            close,
+            volume: 0,
+          });
+        }
+      }
+    }
+    filled.push(next);
+  }
+  return filled;
+}
+
 export function applyTrade(
   candles: Candle[],
   price: number,
