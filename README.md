@@ -8,7 +8,7 @@ Each chart can also be a ratio. Set “Priced in” to another coin, or pick a p
 
 Quotes start from CoinGecko, then each trade from Kraken moves the last price and the current candle. Candle history comes from Kraken, and older bars come from Coinbase when you zoom past what Kraken returns. No API key is required.
 
-Drag the bar at the bottom of a chart to change that panel’s height. One or two charts start as tall as the screen. Three or four start at half that height. Double-click the bar to return a panel to that size.
+Drag the bar at the bottom of a chart to change the height of every panel at once. One or two charts start as tall as the screen. Three or four start at half that height. Double-click the bar to return them to that size.
 
 The open charts, the selected coin, each span and candle size, candle or line, any ratio, each panel height, and whether the market list is hidden are saved in this browser. A refresh restores that layout. The light or dark theme is saved the same way. Use Dark in the header to switch, and Hide to collapse the market list. A small icon at the corner of the chart opens it again.
 

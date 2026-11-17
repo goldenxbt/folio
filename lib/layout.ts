@@ -14,7 +14,6 @@ export type ChartSlot = {
   span: SpanId;
   mode: ChartMode;
   versusId: string | null;
-  height: number | null;
 };
 
 export function clampPanelHeight(height: number): number {
@@ -25,6 +24,7 @@ export type Layout = {
   charts: ChartSlot[];
   activeId: string;
   sidebarOpen: boolean;
+  panelHeight: number | null;
 };
 
 export function marketKey(coinId: string, versusId: string | null): string {
@@ -41,11 +41,11 @@ export function defaultLayout(): Layout {
         span: "1D",
         mode: "candle",
         versusId: null,
-        height: null,
       },
     ],
     activeId: "btc",
     sidebarOpen: true,
+    panelHeight: null,
   };
 }
 
@@ -53,14 +53,20 @@ export function sanitizeLayout(value: unknown): Layout {
   const fallback = defaultLayout();
   if (!value || typeof value !== "object") return fallback;
 
-  const raw = value as { charts?: unknown; activeId?: unknown; sidebarOpen?: unknown };
+  const raw = value as {
+    charts?: unknown;
+    activeId?: unknown;
+    sidebarOpen?: unknown;
+    panelHeight?: unknown;
+  };
   if (!Array.isArray(raw.charts)) return fallback;
 
   const charts: ChartSlot[] = [];
   const seen = new Set<string>();
+  let legacyHeight: number | null = null;
   for (const item of raw.charts) {
     if (!item || typeof item !== "object") continue;
-    const slot = item as Partial<ChartSlot> & { range?: unknown };
+    const slot = item as Partial<ChartSlot> & { range?: unknown; height?: unknown };
     if (typeof slot.id !== "string" || slot.id.length > 80) continue;
     if (typeof slot.coinId !== "string" || !getCoin(slot.coinId)) continue;
     const view = readWindow(slot);
@@ -75,6 +81,7 @@ export function sanitizeLayout(value: unknown): Layout {
     const key = marketKey(slot.coinId, versusId);
     if (seen.has(key)) continue;
     seen.add(key);
+    if (legacyHeight == null) legacyHeight = readHeight(slot.height);
     charts.push({
       id: slot.id,
       coinId: slot.coinId,
@@ -82,7 +89,6 @@ export function sanitizeLayout(value: unknown): Layout {
       span: view.span,
       mode: slot.mode,
       versusId,
-      height: readHeight(slot.height),
     });
     if (charts.length === MAX_CHARTS) break;
   }
@@ -91,7 +97,12 @@ export function sanitizeLayout(value: unknown): Layout {
   const activeId = charts.some((chart) => chart.id === raw.activeId)
     ? (raw.activeId as string)
     : charts[0].id;
-  return { charts, activeId, sidebarOpen: raw.sidebarOpen !== false };
+  return {
+    charts,
+    activeId,
+    sidebarOpen: raw.sidebarOpen !== false,
+    panelHeight: readHeight(raw.panelHeight) ?? legacyHeight,
+  };
 }
 
 function readHeight(value: unknown): number | null {

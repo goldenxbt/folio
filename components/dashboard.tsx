@@ -33,6 +33,7 @@ export function Dashboard() {
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [quoteRetry, setQuoteRetry] = useState(0);
   const [live, setLive] = useState(false);
+  const [previewHeight, setPreviewHeight] = useState<number | null>(null);
   const liveTicks = useRef(new Map<string, LiveTick>());
 
   function applyLive(quotes: Quote[]): Quote[] {
@@ -175,7 +176,7 @@ export function Dashboard() {
       ...layout,
       charts: [
         ...layout.charts,
-        { id, coinId, interval: "1m", span: "12H", mode: "candle", versusId: null, height: null },
+        { id, coinId, interval: "1m", span: "12H", mode: "candle", versusId: null },
       ],
       activeId: id,
     });
@@ -216,7 +217,7 @@ export function Dashboard() {
 
   function patchChart(
     id: string,
-    patch: Partial<Pick<Layout["charts"][number], "interval" | "span" | "mode" | "versusId" | "height">>,
+    patch: Partial<Pick<Layout["charts"][number], "interval" | "span" | "mode" | "versusId">>,
   ) {
     const latest = parseStoredLayout(readLayoutSnapshot());
     update({
@@ -224,6 +225,11 @@ export function Dashboard() {
       activeId: id,
       charts: latest.charts.map((chart) => (chart.id === id ? { ...chart, ...patch } : chart)),
     });
+  }
+
+  function setPanelHeight(panelHeight: number | null) {
+    const latest = parseStoredLayout(readLayoutSnapshot());
+    update({ ...latest, panelHeight });
   }
 
   function setMode(id: string, mode: ChartMode) {
@@ -351,7 +357,7 @@ export function Dashboard() {
               interval={chart.interval}
               span={chart.span}
               mode={chart.mode}
-              height={chart.height}
+              height={previewHeight ?? layout.panelHeight}
               fillsScreen={layout.charts.length <= 2}
               active={chart.id === layout.activeId}
               canClose={layout.charts.length > 1}
@@ -366,7 +372,11 @@ export function Dashboard() {
               onInterval={(interval) => patchChart(chart.id, { interval })}
               onSpan={(span) => patchChart(chart.id, { span })}
               onMode={(mode) => setMode(chart.id, mode)}
-              onHeight={(height) => patchChart(chart.id, { height })}
+              onPreviewHeight={setPreviewHeight}
+              onHeight={(height) => {
+                setPreviewHeight(null);
+                setPanelHeight(height);
+              }}
               occupiedKeys={layout.charts
                 .filter((slot) => slot.id !== chart.id)
                 .map((slot) => marketKey(slot.coinId, slot.versusId))}

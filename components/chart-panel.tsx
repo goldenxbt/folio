@@ -70,6 +70,7 @@ type ChartPanelProps = {
   onInterval: (interval: IntervalId) => void;
   onSpan: (span: SpanId) => void;
   onMode: (mode: ChartMode) => void;
+  onPreviewHeight: (height: number | null) => void;
   onHeight: (height: number | null) => void;
   onVersus: (versusId: string | null) => void;
   occupiedKeys: string[];
@@ -160,6 +161,7 @@ export function ChartPanel({
   onInterval,
   onSpan,
   onMode,
+  onPreviewHeight,
   onHeight,
   onVersus,
   occupiedKeys,
@@ -184,7 +186,6 @@ export function ChartPanel({
   const olderRef = useRef<AbortController | null>(null);
   const sectionRef = useRef<HTMLElement>(null);
   const dragOrigin = useRef<{ y: number; height: number } | null>(null);
-  const [dragHeight, setDragHeight] = useState<number | null>(null);
 
   if (state.key !== requestKey) {
     setState({
@@ -335,7 +336,7 @@ export function ChartPanel({
 
   const title = versus ? `${coin.symbol}/${versus.symbol}` : coin.name;
   const occupied = new Set(occupiedKeys);
-  const resolved = dragHeight ?? height;
+  const resolved = height;
 
   function resizeFrom(clientY: number) {
     const origin = dragOrigin.current;
@@ -471,7 +472,7 @@ export function ChartPanel({
       </dl>
 
       <div className="mt-4 flex shrink-0 min-w-0 items-center gap-4 px-4 md:px-5">
-        <div className="flex min-w-0 flex-1 items-center gap-3 overflow-x-auto">
+        <div className="flex min-w-0 flex-1 items-center gap-3 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <span className="shrink-0 text-[11px] font-medium tracking-[0.14em] text-muted-foreground uppercase">
             Candle
           </span>
@@ -502,9 +503,7 @@ export function ChartPanel({
               </Button>
             ))}
           </div>
-          <span aria-hidden="true" className="shrink-0 px-0.5 text-muted-foreground">
-            |
-          </span>
+          <div aria-hidden="true" className="h-4 w-px shrink-0 bg-border" />
           <span className="shrink-0 text-[11px] font-medium tracking-[0.14em] text-muted-foreground uppercase">
             Span
           </span>
@@ -651,26 +650,27 @@ export function ChartPanel({
         onPointerMove={(event) => {
           const next = resizeFrom(event.clientY);
           if (next == null) return;
-          setDragHeight(next);
+          onPreviewHeight(next);
         }}
         onPointerUp={(event) => {
           const origin = dragOrigin.current;
           if (!origin) return;
           const next = resizeFrom(event.clientY);
           dragOrigin.current = null;
-          setDragHeight(null);
-          if (next == null || Math.abs(next - origin.height) < 2) return;
+          if (next == null || Math.abs(next - origin.height) < 2) {
+            onPreviewHeight(null);
+            return;
+          }
           onHeight(next);
         }}
         onPointerCancel={() => {
           dragOrigin.current = null;
-          setDragHeight(null);
+          onPreviewHeight(null);
         }}
         onDoubleClick={(event) => {
           event.preventDefault();
           event.stopPropagation();
           dragOrigin.current = null;
-          setDragHeight(null);
           onHeight(null);
         }}
         onKeyDown={(event) => {
