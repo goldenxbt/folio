@@ -23,13 +23,12 @@ export function ThemeToggle() {
   return (
     <Button
       variant="outline"
-      size="sm"
+      size="icon-sm"
       aria-pressed={dark}
       aria-label={dark ? "Switch to light theme" : "Switch to dark theme"}
       onClick={() => writeTheme(dark ? "light" : "dark")}
     >
       {dark ? <Sun /> : <Moon />}
-      {dark ? "Light" : "Dark"}
     </Button>
   );
 }
