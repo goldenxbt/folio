@@ -4,6 +4,7 @@ export type LiveTick = {
   id: string;
   price: number;
   tradedAt: number;
+  change24h: number | null;
 };
 
 const STREAM_URL = "wss://data-stream.binance.vision/ws";
@@ -57,9 +58,11 @@ function readPayload(payload: unknown): LiveTick[] {
   const id = typeof message.s === "string" ? idBySymbol.get(message.s) : undefined;
   if (!id || message.e !== "24hrMiniTicker") return [];
   const price = asNumber(message.c);
+  const open = asNumber(message.o);
   const tradedAt = asEpochSec(message.E);
   if (price == null || price <= 0 || tradedAt == null) return [];
-  return [{ id, price, tradedAt }];
+  const change24h = open != null && open > 0 ? ((price - open) / open) * 100 : null;
+  return [{ id, price, tradedAt, change24h }];
 }
 
 export function subscribeTicker(onTicks: (ticks: LiveTick[]) => void): {

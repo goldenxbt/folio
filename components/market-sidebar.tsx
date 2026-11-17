@@ -244,8 +244,12 @@ export function MarketSidebar({
           </div>
         ) : (
           <p className="text-[11px] leading-4 text-muted-foreground">
-            {updatedAt ? `Updated ${formatStamp(updatedAt)}` : "Loading quotes"}
-            {source ? ` · ${SOURCE_NAME[source]}` : ""}
+            {source === "binance"
+              ? "Prices · Binance"
+              : updatedAt
+                ? `Updated ${formatStamp(updatedAt)}`
+                : "Loading quotes"}
+            {source && source !== "binance" ? ` · ${SOURCE_NAME[source]}` : ""}
           </p>
         )}
         <a

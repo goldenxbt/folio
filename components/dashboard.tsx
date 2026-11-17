@@ -76,17 +76,6 @@ export function Dashboard() {
   const [previewHeight, setPreviewHeight] = useState<number | null>(null);
   const [ticks, setTicks] = useState<Map<string, LiveTick>>(() => new Map());
   const chartListRef = useRef<HTMLDivElement>(null);
-  const tickerRef = useRef<ReturnType<typeof subscribeTicker> | null>(null);
-  const openCoinIdsRef = useRef<readonly string[]>([]);
-
-  const openCoinKey = useMemo(() => {
-    const ids = new Set<string>();
-    for (const chart of layout.charts) {
-      ids.add(chart.coinId);
-      if (chart.versusId) ids.add(chart.versusId);
-    }
-    return [...ids].sort().join(",");
-  }, [layout.charts]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -121,48 +110,43 @@ export function Dashboard() {
     };
   }, [quoteRetry]);
 
-  const openCoinIds = useMemo(
-    () => (openCoinKey ? openCoinKey.split(",") : []),
-    [openCoinKey],
-  );
-
-  useEffect(() => {
-    openCoinIdsRef.current = openCoinIds;
-    tickerRef.current?.setCoins(openCoinIds);
-  }, [openCoinIds]);
-
   useEffect(() => {
     const ticker = subscribeTicker((incoming) => {
-      const allowed = openCoinIdsRef.current;
       setTicks((current) => {
-        const next = new Map<string, LiveTick>();
-        for (const [id, tick] of current) {
-          if (allowed.includes(id)) next.set(id, tick);
-        }
-        let changed = next.size !== current.size;
+        let next: Map<string, LiveTick> | null = null;
         for (const tick of incoming) {
-          if (!allowed.includes(tick.id)) continue;
-          const previous = next.get(tick.id);
+          const previous = (next ?? current).get(tick.id);
           if (
             previous &&
             previous.price === tick.price &&
-            previous.tradedAt === tick.tradedAt
+            previous.tradedAt === tick.tradedAt &&
+            previous.change24h === tick.change24h
           ) {
             continue;
           }
+          next ??= new Map(current);
           next.set(tick.id, tick);
-          changed = true;
         }
-        return changed ? next : current;
+        return next ?? current;
       });
     });
-    tickerRef.current = ticker;
-    ticker.setCoins(openCoinIdsRef.current);
-    return () => {
-      ticker.close();
-      if (tickerRef.current === ticker) tickerRef.current = null;
-    };
+    ticker.setCoins(COINS.map((coin) => coin.id));
+    return () => ticker.close();
   }, []);
+
+  const listedQuotes = useMemo(() => {
+    if (!quotes || ticks.size === 0) return quotes;
+    return quotes.map((quote) => {
+      const tick = ticks.get(quote.id);
+      if (!tick) return quote;
+      return {
+        ...quote,
+        price: tick.price,
+        change24h: tick.change24h ?? quote.change24h,
+        tradedAt: tick.tradedAt,
+      };
+    });
+  }, [quotes, ticks]);
 
   const quoteById = useMemo(() => {
     const map = new Map<string, Quote>();
@@ -339,9 +323,9 @@ export function Dashboard() {
       >
         <div className="h-full w-[320px]">
           <MarketSidebar
-            quotes={quotes}
+            quotes={listedQuotes}
             updatedAt={updatedAt}
-            source={source}
+            source={ticks.size > 0 ? "binance" : source}
             error={quoteError}
             activeCoinId={active?.coinId ?? null}
             activeVersusId={active?.versusId ?? null}
@@ -364,7 +348,7 @@ export function Dashboard() {
         <div className="md:hidden">
           {layout.sidebarOpen ? (
             <MarketStrip
-              quotes={quotes}
+              quotes={listedQuotes}
               activeCoinId={active?.coinId ?? null}
               activeVersusId={active?.versusId ?? null}
               onSelect={selectCoin}
