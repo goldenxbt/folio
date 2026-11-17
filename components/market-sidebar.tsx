@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Plus } from "lucide-react";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -98,8 +99,13 @@ export function MarketSidebar({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="px-4 pt-5 pb-3">
-        <p className="text-[11px] font-medium tracking-[0.18em] text-muted-foreground">MARKETS</p>
-        <h1 className="mt-1 text-[1.7rem] leading-none font-semibold tracking-tight">Folio</h1>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-medium tracking-[0.18em] text-muted-foreground">MARKETS</p>
+            <h1 className="mt-1 text-[1.7rem] leading-none font-semibold tracking-tight">Folio</h1>
+          </div>
+          <ThemeToggle />
+        </div>
         <p className="mt-2 text-sm leading-5 text-muted-foreground">
           USD charts, or one coin priced in another. Click a market to change the base.
         </p>
@@ -250,6 +256,7 @@ export function MarketStrip({
           <p className="text-[11px] font-medium tracking-[0.18em] text-muted-foreground">MARKETS</p>
           <h1 className="text-lg font-semibold tracking-tight">Folio</h1>
         </div>
+        <ThemeToggle />
       </div>
       <div className="px-4 py-3">
         <label htmlFor="market-search-mobile" className="sr-only">

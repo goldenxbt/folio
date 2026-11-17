@@ -119,6 +119,9 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+  --up: #3dbe7a;
+  --down: #f0524a;
+  color-scheme: dark;
 }
 
 @layer base {
@@ -131,5 +134,8 @@
   html {
     @apply font-sans;
     color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
   }
 }

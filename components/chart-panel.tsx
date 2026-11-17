@@ -254,7 +254,7 @@ export function ChartPanel({
       onFocus={onActivate}
       className={cn(
         "flex h-auto min-h-[520px] flex-col border-b border-border bg-background md:h-full md:min-h-0 md:border-r",
-        active && "shadow-[inset_0_2px_0_#161616]",
+        active && "shadow-[inset_0_2px_0_var(--foreground)]",
       )}
     >
       <div className="flex items-start justify-between gap-3 px-4 pt-4 md:px-5">

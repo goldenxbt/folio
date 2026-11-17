@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 import {
   AreaSeries,
   CandlestickSeries,
@@ -14,6 +14,13 @@ import {
 } from "lightweight-charts";
 import type { RangeId } from "@/lib/coins";
 import { pricePrecision } from "@/lib/format";
+import {
+  applyTheme,
+  emptyThemeSnapshot,
+  readThemeSnapshot,
+  subscribeTheme,
+  type Theme,
+} from "@/lib/theme";
 import type { Candle } from "@/lib/types";
 
 type PriceChartProps = {
@@ -33,11 +40,61 @@ type SeriesRefs = {
   volume: ISeriesApi<"Histogram"> | null;
 };
 
-const UP = "#0b7a43";
-const DOWN = "#d2332a";
+type Palette = {
+  background: string;
+  text: string;
+  grid: string;
+  crosshair: string;
+  label: string;
+  up: string;
+  down: string;
+};
 
-function volumeColor(candle: Candle): string {
-  return candle.close >= candle.open ? "rgba(11,122,67,0.38)" : "rgba(210,51,42,0.38)";
+function toRgb(color: string): string {
+  const canvas = document.createElement("canvas");
+  canvas.width = 1;
+  canvas.height = 1;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) return "rgb(0, 0, 0)";
+  context.clearRect(0, 0, 1, 1);
+  context.fillStyle = color;
+  context.fillRect(0, 0, 1, 1);
+  const [red, green, blue, alpha] = context.getImageData(0, 0, 1, 1).data;
+  if (alpha < 255) return `rgba(${red}, ${green}, ${blue}, ${(alpha / 255).toFixed(3)})`;
+  return `rgb(${red}, ${green}, ${blue})`;
+}
+
+function readCss(variable: string, property: "color" | "backgroundColor"): string {
+  const probe = document.createElement("span");
+  probe.style[property] = `var(${variable})`;
+  document.body.appendChild(probe);
+  const value = getComputedStyle(probe)[property];
+  probe.remove();
+  return toRgb(value);
+}
+
+function withAlpha(color: string, alpha: number): string {
+  const match = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+  if (!match) return color;
+  return `rgba(${match[1]}, ${match[2]}, ${match[3]}, ${alpha})`;
+}
+
+function palette(theme: Theme): Palette {
+  applyTheme(theme);
+  const dark = theme === "dark";
+  return {
+    background: readCss("--background", "backgroundColor"),
+    text: readCss("--muted-foreground", "color"),
+    up: readCss("--up", "color"),
+    down: readCss("--down", "color"),
+    grid: dark ? "rgba(255,255,255,0.08)" : "rgba(22,22,22,0.06)",
+    crosshair: dark ? "rgba(255,255,255,0.35)" : "rgba(22,22,22,0.35)",
+    label: dark ? "#2c2c2c" : "#161616",
+  };
+}
+
+function volumeColor(candle: Candle, colors: Palette): string {
+  return withAlpha(candle.close >= candle.open ? colors.up : colors.down, 0.38);
 }
 
 function paintSeries(
@@ -46,6 +103,7 @@ function paintSeries(
   candles: Candle[],
   fitKey: string,
   fitKeyRef: { current: string },
+  colors: Palette,
   onHover: (candle: Candle | null) => void,
 ) {
   if (candles.length === 0) return;
@@ -69,7 +127,7 @@ function paintSeries(
     candles.map((candle) => ({
       time: candle.time as UTCTimestamp,
       value: candle.volume,
-      color: volumeColor(candle),
+      color: volumeColor(candle, colors),
     })),
   );
 
@@ -96,6 +154,8 @@ export function PriceChart({
   const candlesRef = useRef<Candle[]>(candles);
   const hoverRef = useRef(onHover);
   const formatRef = useRef(formatPrice);
+  const theme = useSyncExternalStore(subscribeTheme, readThemeSnapshot, emptyThemeSnapshot);
+  const themeRef = useRef(theme);
   const fitKeyRef = useRef("");
   const seriesKeyRef = useRef("");
 
@@ -104,6 +164,10 @@ export function PriceChart({
   useEffect(() => {
     hoverRef.current = onHover;
   }, [onHover]);
+
+  useEffect(() => {
+    themeRef.current = theme;
+  }, [theme]);
 
   useEffect(() => {
     formatRef.current = formatPrice;
@@ -116,18 +180,19 @@ export function PriceChart({
     const element = containerRef.current;
     if (!element) return;
 
+    const colors = palette(themeRef.current);
     const chart = createChart(element, {
       autoSize: true,
       layout: {
-        background: { type: ColorType.Solid, color: "#ffffff" },
-        textColor: "#6b6b6b",
+        background: { type: ColorType.Solid, color: colors.background },
+        textColor: colors.text,
         fontFamily: getComputedStyle(document.body).fontFamily,
         fontSize: 11,
         attributionLogo: false,
       },
       grid: {
         vertLines: { visible: false },
-        horzLines: { color: "rgba(22,22,22,0.06)" },
+        horzLines: { color: colors.grid },
       },
       rightPriceScale: { borderVisible: false },
       leftPriceScale: { visible: false },
@@ -135,12 +200,12 @@ export function PriceChart({
       crosshair: {
         mode: CrosshairMode.Normal,
         vertLine: {
-          color: "rgba(22,22,22,0.35)",
-          labelBackgroundColor: "#161616",
+          color: colors.crosshair,
+          labelBackgroundColor: colors.label,
         },
         horzLine: {
-          color: "rgba(22,22,22,0.35)",
-          labelBackgroundColor: "#161616",
+          color: colors.crosshair,
+          labelBackgroundColor: colors.label,
         },
       },
       localization: {
@@ -181,7 +246,8 @@ export function PriceChart({
     if (!chart) return;
 
     candlesRef.current = candles;
-    const seriesKey = `${mode}:${positive ? "up" : "down"}:${precision}:${showVolume ? "vol" : "flat"}`;
+    const colors = palette(theme);
+    const seriesKey = `${theme}:${mode}:${positive ? "up" : "down"}:${precision}:${showVolume ? "vol" : "flat"}`;
     if (seriesKeyRef.current !== seriesKey) {
       const previous = seriesRef.current;
       if (previous.candle) chart.removeSeries(previous.candle);
@@ -197,11 +263,11 @@ export function PriceChart({
 
       if (mode === "candle") {
         next.candle = chart.addSeries(CandlestickSeries, {
-          upColor: UP,
-          downColor: DOWN,
+          upColor: colors.up,
+          downColor: colors.down,
           borderVisible: false,
-          wickUpColor: UP,
-          wickDownColor: DOWN,
+          wickUpColor: colors.up,
+          wickDownColor: colors.down,
           priceFormat,
         });
         if (showVolume) {
@@ -219,11 +285,11 @@ export function PriceChart({
           scaleMargins: { top: 0.08, bottom: showVolume ? 0.22 : 0.06 },
         });
       } else {
-        const line = positive ? UP : DOWN;
+        const line = positive ? colors.up : colors.down;
         next.area = chart.addSeries(AreaSeries, {
           lineColor: line,
-          topColor: positive ? "rgba(11,122,67,0.28)" : "rgba(210,51,42,0.2)",
-          bottomColor: "rgba(255,255,255,0)",
+          topColor: withAlpha(line, positive ? 0.28 : 0.2),
+          bottomColor: withAlpha(colors.background, 0),
           lineWidth: 2 as const,
           priceFormat,
           priceLineVisible: true,
@@ -238,6 +304,15 @@ export function PriceChart({
     }
 
     chart.applyOptions({
+      layout: {
+        background: { type: ColorType.Solid, color: colors.background },
+        textColor: colors.text,
+      },
+      grid: { horzLines: { color: colors.grid } },
+      crosshair: {
+        vertLine: { color: colors.crosshair, labelBackgroundColor: colors.label },
+        horzLine: { color: colors.crosshair, labelBackgroundColor: colors.label },
+      },
       timeScale: {
         timeVisible: range === "1D" || range === "7D",
         secondsVisible: false,
@@ -250,9 +325,12 @@ export function PriceChart({
       candles,
       `${fitId}:${range}:${mode}`,
       fitKeyRef,
+      colors,
       (candle) => hoverRef.current(candle),
     );
-  }, [candles, fitId, mode, positive, precision, range, showVolume]);
+  }, [candles, fitId, mode, positive, precision, range, showVolume, theme]);
 
-  return <div ref={containerRef} className="h-full min-h-[240px] w-full overflow-hidden md:min-h-[280px]" />;
+  return (
+    <div ref={containerRef} className="h-full min-h-[240px] w-full overflow-hidden bg-background md:min-h-[280px]" />
+  );
 }
