@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { PanelLeftClose, Plus } from "lucide-react";
+import { PanelLeft, PanelLeftClose, Plus } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +28,8 @@ type MarketListProps = {
   onOpen: (coinId: string) => void;
   onAdd: () => void;
   onHide: () => void;
+  onPin: () => void;
+  docked: boolean;
   onRetry: () => void;
 };
 
@@ -98,6 +100,8 @@ export function MarketSidebar({
   onOpen,
   onAdd,
   onHide,
+  onPin,
+  docked,
   onRetry,
 }: MarketListProps) {
   const [query, setQuery] = useState("");
@@ -106,23 +110,27 @@ export function MarketSidebar({
 
   return (
     <div id="market-sidebar" className="flex h-full min-h-0 flex-col">
-      <div className="px-4 pt-5 pb-3">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-[11px] font-medium tracking-[0.18em] text-muted-foreground">MARKETS</p>
-            <h1 className="mt-1 text-[1.7rem] leading-none font-semibold tracking-tight">Folio</h1>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <ThemeToggle />
-            <Button variant="outline" size="sm" aria-expanded={true} aria-controls="market-sidebar" onClick={onHide}>
-              <PanelLeftClose />
-              Hide
-            </Button>
-          </div>
+      <div className="px-2 pt-2.5 pb-3">
+        <div className="flex items-center justify-between">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={docked ? "Hide markets" : "Pin markets open"}
+            aria-expanded={docked}
+            aria-controls="market-sidebar"
+            onClick={docked ? onHide : onPin}
+          >
+            <PanelLeft />
+          </Button>
+          <ThemeToggle />
         </div>
-        <p className="mt-2 text-sm leading-5 text-muted-foreground">
-          USD charts, or one coin priced in another. Click a market to change the base.
-        </p>
+        <div className="px-2 pt-2">
+          <p className="text-[11px] font-medium tracking-[0.18em] text-muted-foreground">MARKETS</p>
+          <h1 className="mt-1 text-[1.7rem] leading-none font-semibold tracking-tight">Folio</h1>
+          <p className="mt-2 text-sm leading-5 text-muted-foreground">
+            USD charts, or one coin priced in another. Click a market to change the base.
+          </p>
+        </div>
       </div>
 
       <div className="px-4 pb-3">

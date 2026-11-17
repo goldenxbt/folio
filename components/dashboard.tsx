@@ -73,6 +73,9 @@ export function Dashboard() {
   const [quoteRetry, setQuoteRetry] = useState(0);
   const [live, setLive] = useState(false);
   const [previewHeight, setPreviewHeight] = useState<number | null>(null);
+  const [marketsPeek, setMarketsPeek] = useState(false);
+  const marketsPeekRef = useRef(false);
+  const marketsFocusRef = useRef(false);
   const liveTicks = useRef(new Map<string, LiveTick>());
   const chartListRef = useRef<HTMLDivElement>(null);
 
@@ -299,38 +302,83 @@ export function Dashboard() {
   }
 
   function setSidebar(open: boolean) {
+    if (open) {
+      marketsPeekRef.current = false;
+      setMarketsPeek(false);
+    }
     update({ ...layout, sidebarOpen: open });
   }
 
+  useEffect(() => {
+    if (layout.sidebarOpen) return;
+    function onMove(event: MouseEvent) {
+      const inside = marketsFocusRef.current || event.clientX <= (marketsPeekRef.current ? 324 : 12);
+      if (inside === marketsPeekRef.current) return;
+      marketsPeekRef.current = inside;
+      setMarketsPeek(inside);
+    }
+    window.addEventListener("mousemove", onMove);
+    return () => window.removeEventListener("mousemove", onMove);
+  }, [layout.sidebarOpen]);
+
   return (
     <div className="flex h-dvh flex-col bg-background md:flex-row">
-      <aside
-        className={
-          layout.sidebarOpen
-            ? "hidden h-dvh w-[320px] shrink-0 border-r border-border bg-sidebar md:block"
-            : "hidden"
-        }
+      <div
+        className="contents"
+        onFocusCapture={() => {
+          marketsFocusRef.current = true;
+          if (marketsPeekRef.current) return;
+          marketsPeekRef.current = true;
+          setMarketsPeek(true);
+        }}
+        onBlurCapture={(event) => {
+          const next = event.relatedTarget;
+          if (next instanceof Node && event.currentTarget.contains(next)) return;
+          marketsFocusRef.current = false;
+        }}
       >
-        <MarketSidebar
-          quotes={quotes}
-          updatedAt={updatedAt}
-          source={source}
-          error={quoteError}
-          live={live}
-          activeCoinId={active?.coinId ?? null}
-          activeVersusId={active?.versusId ?? null}
-          chartCount={layout.charts.length}
-          maxCharts={MAX_CHARTS}
-          canAdd={canAdd}
-          openUsdIds={openUsdIds}
-          onSelect={selectCoin}
-          onSelectPair={selectPair}
-          onOpen={openCoin}
-          onAdd={addChart}
-          onHide={() => setSidebar(false)}
-          onRetry={() => setQuoteRetry((count) => count + 1)}
-        />
-      </aside>
+        <aside
+          className={
+            layout.sidebarOpen
+              ? "hidden h-dvh w-[320px] shrink-0 border-r border-border bg-sidebar md:block"
+              : [
+                  "fixed top-0 left-0 z-40 hidden h-dvh w-[320px] border-r border-border bg-sidebar shadow-xl transition-transform duration-200 ease-linear md:block",
+                  marketsPeek ? "translate-x-0" : "pointer-events-none -translate-x-full",
+                ].join(" ")
+          }
+          aria-hidden={layout.sidebarOpen || marketsPeek ? undefined : true}
+        >
+          <MarketSidebar
+            quotes={quotes}
+            updatedAt={updatedAt}
+            source={source}
+            error={quoteError}
+            live={live}
+            activeCoinId={active?.coinId ?? null}
+            activeVersusId={active?.versusId ?? null}
+            chartCount={layout.charts.length}
+            maxCharts={MAX_CHARTS}
+            canAdd={canAdd}
+            openUsdIds={openUsdIds}
+            onSelect={selectCoin}
+            onSelectPair={selectPair}
+            onOpen={openCoin}
+            onAdd={addChart}
+            docked={layout.sidebarOpen}
+            onHide={() => setSidebar(false)}
+            onPin={() => setSidebar(true)}
+            onRetry={() => setQuoteRetry((count) => count + 1)}
+          />
+        </aside>
+        {layout.sidebarOpen ? null : (
+          <button
+            type="button"
+            className="fixed inset-y-0 left-0 z-30 hidden w-3 cursor-e-resize md:block"
+            aria-label="Show markets"
+            onClick={() => setSidebar(true)}
+          />
+        )}
+      </div>
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <div className="md:hidden">
@@ -398,7 +446,7 @@ export function Dashboard() {
             layout.charts.length <= 2 ? "md:grid-rows-1" : "",
           ].join(" ")}
         >
-          {layout.charts.map((chart, index) => (
+          {layout.charts.map((chart) => (
             <ChartPanel
               key={chart.id}
               id={chart.id}
@@ -413,25 +461,6 @@ export function Dashboard() {
               active={chart.id === layout.activeId}
               canClose={layout.charts.length > 1}
               showSelected={layout.charts.length > 1 && chart.id === layout.activeId}
-              headerTools={
-                layout.sidebarOpen || index > 0 ? null : (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="hidden shrink-0 md:inline-flex"
-                    aria-label="Show markets"
-                    aria-expanded={false}
-                    aria-controls="market-sidebar"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setSidebar(true);
-                    }}
-                  >
-                    <PanelLeft />
-                    Show
-                  </Button>
-                )
-              }
               quote={quoteById.get(chart.coinId) ?? null}
               versusQuote={chart.versusId ? (quoteById.get(chart.versusId) ?? null) : null}
               onActivate={() => update({ ...layout, activeId: chart.id })}

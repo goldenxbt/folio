@@ -63,7 +63,6 @@ type ChartPanelProps = {
   active: boolean;
   canClose: boolean;
   showSelected: boolean;
-  headerTools?: ReactNode;
   quote: Quote | null;
   versusQuote: Quote | null;
   onActivate: () => void;
@@ -275,7 +274,6 @@ export function ChartPanel({
   active,
   canClose,
   showSelected,
-  headerTools,
   quote,
   versusQuote,
   onActivate,
@@ -597,7 +595,6 @@ export function ChartPanel({
             ) : null}
           </div>
         </div>
-        {headerTools}
         {canClose ? (
           <Button
             variant="ghost"
