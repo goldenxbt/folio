@@ -27,9 +27,8 @@ type MarketListProps = {
   onSelectPair: (baseId: string, quoteId: string) => void;
   onOpen: (coinId: string) => void;
   onAdd: () => void;
-  onHide: () => void;
-  onPin: () => void;
-  docked: boolean;
+  open: boolean;
+  onToggle: () => void;
   onRetry: () => void;
 };
 
@@ -99,9 +98,8 @@ export function MarketSidebar({
   onSelectPair,
   onOpen,
   onAdd,
-  onHide,
-  onPin,
-  docked,
+  open,
+  onToggle,
   onRetry,
 }: MarketListProps) {
   const [query, setQuery] = useState("");
@@ -110,28 +108,31 @@ export function MarketSidebar({
 
   return (
     <div id="market-sidebar" className="flex h-full min-h-0 flex-col">
-      <div className="px-2 pt-2.5 pb-3">
+      <div className="px-2 pt-2.5">
         <div className="flex items-center justify-between">
           <Button
             variant="ghost"
             size="icon-sm"
-            aria-label={docked ? "Hide markets" : "Pin markets open"}
-            aria-expanded={docked}
+            aria-label={open ? "Hide markets" : "Show markets"}
+            aria-expanded={open}
             aria-controls="market-sidebar"
-            onClick={docked ? onHide : onPin}
+            onClick={onToggle}
           >
             <PanelLeft />
           </Button>
-          <ThemeToggle />
+          <div inert={open ? undefined : true}>
+            <ThemeToggle />
+          </div>
         </div>
-        <div className="px-2 pt-2">
+      </div>
+      <div className={open ? "flex min-h-0 flex-1 flex-col" : "invisible flex min-h-0 flex-1 flex-col"} inert={open ? undefined : true}>
+        <div className="px-4 pt-2 pb-3">
           <p className="text-[11px] font-medium tracking-[0.18em] text-muted-foreground">MARKETS</p>
           <h1 className="mt-1 text-[1.7rem] leading-none font-semibold tracking-tight">Folio</h1>
           <p className="mt-2 text-sm leading-5 text-muted-foreground">
             USD charts, or one coin priced in another. Click a market to change the base.
           </p>
         </div>
-      </div>
 
       <div className="px-4 pb-3">
         <label htmlFor="market-search" className="sr-only">
@@ -256,6 +257,7 @@ export function MarketSidebar({
         >
           Charts by TradingView
         </a>
+      </div>
       </div>
     </div>
   );
