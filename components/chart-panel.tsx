@@ -33,6 +33,7 @@ import {
   marketKey,
   type ChartMode,
 } from "@/lib/layout";
+import type { LiveTick } from "@/lib/live-ticker";
 import type { Candle, MarketSource, Quote } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -65,6 +66,8 @@ type ChartPanelProps = {
   showSelected: boolean;
   quote: Quote | null;
   versusQuote: Quote | null;
+  tick: LiveTick | null;
+  versusTick: LiveTick | null;
   onActivate: () => void;
   onClose: () => void;
   onInterval: (interval: IntervalId) => void;
@@ -275,6 +278,8 @@ export function ChartPanel({
   showSelected,
   quote,
   versusQuote,
+  tick,
+  versusTick,
   onActivate,
   onClose,
   onInterval,
@@ -425,17 +430,18 @@ export function ChartPanel({
     };
   }, [coinId, interval, requestKey, state.candles, state.exhausted, state.loadingOlder, versus]);
 
+  const basePrice = tick?.price ?? quote?.price ?? null;
+  const versusPrice = versusTick?.price ?? versusQuote?.price ?? null;
   const livePrice =
-    versus && quote?.price != null && versusQuote?.price != null && versusQuote.price > 0
-      ? quote.price / versusQuote.price
+    versus && basePrice != null && versusPrice != null && versusPrice > 0
+      ? basePrice / versusPrice
       : versus
         ? null
-        : (quote?.price ?? null);
-  const tradeAt = Math.max(quote?.tradedAt ?? 0, versusQuote?.tradedAt ?? 0);
+        : basePrice;
+  const tradeAt = Math.max(tick?.tradedAt ?? 0, versusTick?.tradedAt ?? 0);
   const candles = useMemo(() => {
-    if (!state.candles || livePrice == null || !intervalSpec) return state.candles;
-    const stamp = tradeAt > 0 ? tradeAt : (state.candles.at(-1)?.time ?? 0);
-    return applyTrade(state.candles, livePrice, stamp, intervalSpec.seconds);
+    if (!state.candles || livePrice == null || !intervalSpec || tradeAt <= 0) return state.candles;
+    return applyTrade(state.candles, livePrice, tradeAt, intervalSpec.seconds);
   }, [intervalSpec, livePrice, state.candles, tradeAt]);
   const visibleCandles = useMemo(() => {
     if (!candles || !spanSpec) return candles;
@@ -471,12 +477,12 @@ export function ChartPanel({
       <Stat
         tight={compact}
         label={coin.symbol}
-        value={quote?.price == null ? "—" : formatUsd(quote.price)}
+        value={basePrice == null ? "—" : formatUsd(basePrice)}
       />
       <Stat
         tight={compact}
         label={versus.symbol}
-        value={versusQuote?.price == null ? "—" : formatUsd(versusQuote.price)}
+        value={versusPrice == null ? "—" : formatUsd(versusPrice)}
       />
     </>
   ) : (

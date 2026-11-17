@@ -20,6 +20,8 @@ import {
 import { subscribeTicker, type LiveTick } from "@/lib/live-ticker";
 import type { MarketSource, Quote, QuotesResponse } from "@/lib/types";
 
+const QUOTE_REFRESH_MS = 60_000;
+
 function chartButtonLabel(coinId: string, versusId: string | null): string {
   const coin = getCoin(coinId);
   const versus = versusId ? getCoin(versusId) : null;
@@ -71,26 +73,20 @@ export function Dashboard() {
   const [source, setSource] = useState<MarketSource | null>(null);
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [quoteRetry, setQuoteRetry] = useState(0);
-  const [live, setLive] = useState(false);
   const [previewHeight, setPreviewHeight] = useState<number | null>(null);
-  const liveTicks = useRef(new Map<string, LiveTick>());
+  const [ticks, setTicks] = useState<Map<string, LiveTick>>(() => new Map());
   const chartListRef = useRef<HTMLDivElement>(null);
+  const tickerRef = useRef<ReturnType<typeof subscribeTicker> | null>(null);
+  const openCoinIdsRef = useRef<readonly string[]>([]);
 
-  function applyLive(quotes: Quote[]): Quote[] {
-    return quotes.map((quote) => {
-      const tick = liveTicks.current.get(quote.id);
-      if (!tick) return quote;
-      return {
-        ...quote,
-        price: tick.price,
-        change24h: tick.change24h ?? quote.change24h,
-        high24h: tick.high24h ?? quote.high24h,
-        low24h: tick.low24h ?? quote.low24h,
-        volume24h: tick.volume24h ?? quote.volume24h,
-        tradedAt: tick.tradedAt,
-      };
-    });
-  }
+  const openCoinKey = useMemo(() => {
+    const ids = new Set<string>();
+    for (const chart of layout.charts) {
+      ids.add(chart.coinId);
+      if (chart.versusId) ids.add(chart.versusId);
+    }
+    return [...ids].sort().join(",");
+  }, [layout.charts]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -98,13 +94,16 @@ export function Dashboard() {
 
     async function load() {
       try {
-        const response = await fetch("/api/quotes", { signal: controller.signal });
+        const response = await fetch("/api/quotes", {
+          signal: controller.signal,
+          cache: "no-store",
+        });
         if (!response.ok) throw new Error("unavailable");
         const body = (await response.json()) as Partial<QuotesResponse>;
         if (controller.signal.aborted) return;
         if (!Array.isArray(body.quotes)) throw new Error("invalid");
         hasData = true;
-        setQuotes(applyLive(body.quotes));
+        setQuotes(body.quotes);
         setUpdatedAt(typeof body.updatedAt === "number" ? body.updatedAt : Date.now());
         setSource(body.source ?? null);
         setQuoteError(null);
@@ -115,25 +114,54 @@ export function Dashboard() {
     }
 
     void load();
-    const timer = window.setInterval(() => void load(), 60_000);
+    const timer = window.setInterval(() => void load(), QUOTE_REFRESH_MS);
     return () => {
       controller.abort();
       window.clearInterval(timer);
     };
   }, [quoteRetry]);
 
+  const openCoinIds = useMemo(
+    () => (openCoinKey ? openCoinKey.split(",") : []),
+    [openCoinKey],
+  );
+
   useEffect(() => {
-    let staleTimer = 0;
-    const stop = subscribeTicker((ticks) => {
-      for (const tick of ticks) liveTicks.current.set(tick.id, tick);
-      setLive(true);
-      setQuotes((current) => (current ? applyLive(current) : current));
-      window.clearTimeout(staleTimer);
-      staleTimer = window.setTimeout(() => setLive(false), 15_000);
+    openCoinIdsRef.current = openCoinIds;
+    tickerRef.current?.setCoins(openCoinIds);
+  }, [openCoinIds]);
+
+  useEffect(() => {
+    const ticker = subscribeTicker((incoming) => {
+      const allowed = openCoinIdsRef.current;
+      setTicks((current) => {
+        const next = new Map<string, LiveTick>();
+        for (const [id, tick] of current) {
+          if (allowed.includes(id)) next.set(id, tick);
+        }
+        let changed = next.size !== current.size;
+        for (const tick of incoming) {
+          if (!allowed.includes(tick.id)) continue;
+          const previous = next.get(tick.id);
+          if (
+            previous &&
+            previous.price === tick.price &&
+            previous.tradedAt === tick.tradedAt &&
+            previous.priceFromTrade === tick.priceFromTrade
+          ) {
+            continue;
+          }
+          next.set(tick.id, tick);
+          changed = true;
+        }
+        return changed ? next : current;
+      });
     });
+    tickerRef.current = ticker;
+    ticker.setCoins(openCoinIdsRef.current);
     return () => {
-      window.clearTimeout(staleTimer);
-      stop();
+      ticker.close();
+      if (tickerRef.current === ticker) tickerRef.current = null;
     };
   }, []);
 
@@ -316,7 +344,6 @@ export function Dashboard() {
             updatedAt={updatedAt}
             source={source}
             error={quoteError}
-            live={live}
             activeCoinId={active?.coinId ?? null}
             activeVersusId={active?.versusId ?? null}
             chartCount={layout.charts.length}
@@ -416,6 +443,8 @@ export function Dashboard() {
               showSelected={layout.charts.length > 1 && chart.id === layout.activeId}
               quote={quoteById.get(chart.coinId) ?? null}
               versusQuote={chart.versusId ? (quoteById.get(chart.versusId) ?? null) : null}
+              tick={ticks.get(chart.coinId) ?? null}
+              versusTick={chart.versusId ? (ticks.get(chart.versusId) ?? null) : null}
               onActivate={() => update({ ...layout, activeId: chart.id })}
               onClose={() => closeChart(chart.id)}
               onInterval={(interval) => patchChart(chart.id, { interval })}
