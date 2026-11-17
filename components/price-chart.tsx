@@ -12,7 +12,7 @@ import {
   type ISeriesApi,
   type UTCTimestamp,
 } from "lightweight-charts";
-import type { RangeId } from "@/lib/coins";
+import { rangeShowsClock, type RangeId } from "@/lib/coins";
 import { pricePrecision } from "@/lib/format";
 import {
   applyTheme,
@@ -314,7 +314,7 @@ export function PriceChart({
         horzLine: { color: colors.crosshair, labelBackgroundColor: colors.label },
       },
       timeScale: {
-        timeVisible: range === "1m" || range === "1D" || range === "7D",
+        timeVisible: rangeShowsClock(range),
         secondsVisible: false,
         borderVisible: false,
       },

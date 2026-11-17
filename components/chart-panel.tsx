@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { COINS, getCoin, type RangeId } from "@/lib/coins";
+import { COINS, RANGES, getCoin, rangeShowsClock, type RangeId } from "@/lib/coins";
 import {
   formatBarTime,
   formatCompactUsd,
@@ -32,8 +32,6 @@ const SOURCE_NAME: Record<MarketSource, string> = {
   coinbase: "Coinbase",
   coingecko: "CoinGecko",
 };
-
-const RANGES: RangeId[] = ["1m", "1D", "7D", "1M", "3M", "1Y"];
 
 type ChartPanelProps = {
   id: string;
@@ -240,7 +238,7 @@ export function ChartPanel({
   const move = rangeMove(candles);
   const extremes = rangeExtremes(candles);
   const price = livePrice ?? candles?.at(-1)?.close ?? null;
-  const showTime = range === "1m" || range === "1D" || range === "7D";
+  const showTime = rangeShowsClock(range);
   const formatValue = versus ? formatRatio : formatUsd;
   const formatSigned = versus ? formatSignedRatio : formatSignedUsd;
 
@@ -363,31 +361,35 @@ export function ChartPanel({
         )}
       </dl>
 
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 md:px-5">
-        <div role="radiogroup" aria-label={`${coin.name} range`} className="flex gap-4">
+      <div className="mt-4 flex min-w-0 items-center justify-between gap-4 px-4 md:px-5">
+        <div
+          role="radiogroup"
+          aria-label={`${coin.name} range`}
+          className="flex min-w-0 flex-1 gap-3 overflow-x-auto"
+        >
           {RANGES.map((item) => (
             <Button
-              key={item}
+              key={item.id}
               variant="ghost"
               size="xs"
               role="radio"
-              aria-checked={range === item}
+              aria-checked={range === item.id}
               className={cn(
-                "h-auto rounded-none px-0 text-sm hover:bg-transparent",
-                range === item
+                "h-auto shrink-0 rounded-none px-0 text-sm hover:bg-transparent",
+                range === item.id
                   ? "text-foreground underline decoration-2 underline-offset-[7px]"
                   : "text-muted-foreground",
               )}
               onClick={(event) => {
                 event.stopPropagation();
-                onRange(item);
+                onRange(item.id);
               }}
             >
-              {item}
+              {item.label}
             </Button>
           ))}
         </div>
-        <div role="radiogroup" aria-label={`${coin.name} chart type`} className="flex gap-4">
+        <div role="radiogroup" aria-label={`${coin.name} chart type`} className="flex shrink-0 gap-4">
           {(
             [
               ["candle", "Candle"],

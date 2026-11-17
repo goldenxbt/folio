@@ -8,11 +8,27 @@ export const RANGES = [
     interval: "1-minute",
   },
   {
+    id: "5m",
+    label: "5m",
+    krakenInterval: 5,
+    coinbaseGranularity: 300,
+    windowSec: 48 * 60 * 60,
+    interval: "5-minute",
+  },
+  {
     id: "1D",
     label: "1D",
     krakenInterval: 15,
     coinbaseGranularity: 900,
     windowSec: 24 * 60 * 60,
+    interval: "15-minute",
+  },
+  {
+    id: "15m",
+    label: "15m",
+    krakenInterval: 15,
+    coinbaseGranularity: 900,
+    windowSec: 5 * 24 * 60 * 60,
     interval: "15-minute",
   },
   {
@@ -24,11 +40,27 @@ export const RANGES = [
     interval: "1-hour",
   },
   {
+    id: "1H",
+    label: "1H",
+    krakenInterval: 60,
+    coinbaseGranularity: 3600,
+    windowSec: 14 * 24 * 60 * 60,
+    interval: "1-hour",
+  },
+  {
     id: "1M",
     label: "1M",
     krakenInterval: 240,
     coinbaseGranularity: 21600,
     windowSec: 30 * 24 * 60 * 60,
+    interval: "4-hour",
+  },
+  {
+    id: "4H",
+    label: "4H",
+    krakenInterval: 240,
+    coinbaseGranularity: 21600,
+    windowSec: 90 * 24 * 60 * 60,
     interval: "4-hour",
   },
   {
@@ -40,12 +72,28 @@ export const RANGES = [
     interval: "daily",
   },
   {
+    id: "6M",
+    label: "6M",
+    krakenInterval: 1440,
+    coinbaseGranularity: 86400,
+    windowSec: 180 * 24 * 60 * 60,
+    interval: "daily",
+  },
+  {
     id: "1Y",
     label: "1Y",
     krakenInterval: 1440,
     coinbaseGranularity: 86400,
     windowSec: 365 * 24 * 60 * 60,
     interval: "daily",
+  },
+  {
+    id: "5Y",
+    label: "5Y",
+    krakenInterval: 10080,
+    coinbaseGranularity: 86400,
+    windowSec: 5 * 365 * 24 * 60 * 60,
+    interval: "weekly",
   },
 ] as const;
 
@@ -96,6 +144,11 @@ export function getCoin(id: string): Coin | null {
 
 export function getRange(id: string): RangeSpec | null {
   return rangeById.get(id as RangeId) ?? null;
+}
+
+export function rangeShowsClock(id: string): boolean {
+  const range = getRange(id);
+  return range != null && range.windowSec <= 14 * 24 * 60 * 60;
 }
 
 export const RATIO_PRESETS = [
