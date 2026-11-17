@@ -16,6 +16,7 @@ export type ChartSlot = {
 export type Layout = {
   charts: ChartSlot[];
   activeId: string;
+  sidebarOpen: boolean;
 };
 
 export function marketKey(coinId: string, versusId: string | null): string {
@@ -26,6 +27,7 @@ export function defaultLayout(): Layout {
   return {
     charts: [{ id: "btc", coinId: "bitcoin", range: "1D", mode: "candle", versusId: null }],
     activeId: "btc",
+    sidebarOpen: true,
   };
 }
 
@@ -33,7 +35,7 @@ export function sanitizeLayout(value: unknown): Layout {
   const fallback = defaultLayout();
   if (!value || typeof value !== "object") return fallback;
 
-  const raw = value as { charts?: unknown; activeId?: unknown };
+  const raw = value as { charts?: unknown; activeId?: unknown; sidebarOpen?: unknown };
   if (!Array.isArray(raw.charts)) return fallback;
 
   const charts: ChartSlot[] = [];
@@ -68,7 +70,7 @@ export function sanitizeLayout(value: unknown): Layout {
   const activeId = charts.some((chart) => chart.id === raw.activeId)
     ? (raw.activeId as string)
     : charts[0].id;
-  return { charts, activeId };
+  return { charts, activeId, sidebarOpen: raw.sidebarOpen !== false };
 }
 
 const LAYOUT_EVENT = "folio-layout";

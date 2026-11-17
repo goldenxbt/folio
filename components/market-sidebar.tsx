@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Plus } from "lucide-react";
+import { PanelLeftClose, Plus } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,6 +26,7 @@ type MarketListProps = {
   onSelectPair: (baseId: string, quoteId: string) => void;
   onOpen: (coinId: string) => void;
   onAdd: () => void;
+  onHide: () => void;
   onRetry: () => void;
 };
 
@@ -94,6 +95,7 @@ export function MarketSidebar({
   onSelectPair,
   onOpen,
   onAdd,
+  onHide,
   onRetry,
 }: MarketListProps) {
   const [query, setQuery] = useState("");
@@ -101,14 +103,20 @@ export function MarketSidebar({
   const openUsd = new Set(openUsdIds);
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div id="market-sidebar" className="flex h-full min-h-0 flex-col">
       <div className="px-4 pt-5 pb-3">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-[11px] font-medium tracking-[0.18em] text-muted-foreground">MARKETS</p>
             <h1 className="mt-1 text-[1.7rem] leading-none font-semibold tracking-tight">Folio</h1>
           </div>
-          <ThemeToggle />
+          <div className="flex items-center gap-1.5">
+            <Button variant="outline" size="sm" aria-expanded={true} aria-controls="market-sidebar" onClick={onHide}>
+              <PanelLeftClose />
+              Hide
+            </Button>
+            <ThemeToggle />
+          </div>
         </div>
         <p className="mt-2 text-sm leading-5 text-muted-foreground">
           USD charts, or one coin priced in another. Click a market to change the base.
@@ -249,12 +257,14 @@ export function MarketStrip({
   activeVersusId,
   onSelect,
   onSelectPair,
+  onHide,
 }: {
   quotes: Quote[] | null;
   activeCoinId: string | null;
   activeVersusId: string | null;
   onSelect: (coinId: string) => void;
   onSelectPair: (baseId: string, quoteId: string) => void;
+  onHide: () => void;
 }) {
   const [query, setQuery] = useState("");
   const { coins, quoteById } = useOrderedCoins(quotes, query);
@@ -266,7 +276,13 @@ export function MarketStrip({
           <p className="text-[11px] font-medium tracking-[0.18em] text-muted-foreground">MARKETS</p>
           <h1 className="text-lg font-semibold tracking-tight">Folio</h1>
         </div>
-        <ThemeToggle />
+        <div className="flex items-center gap-1.5">
+          <Button variant="outline" size="sm" aria-expanded={true} onClick={onHide}>
+            <PanelLeftClose />
+            Hide
+          </Button>
+          <ThemeToggle />
+        </div>
       </div>
       <div className="px-4 py-3">
         <label htmlFor="market-search-mobile" className="sr-only">

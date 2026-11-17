@@ -8,7 +8,7 @@ Each chart can also be a ratio. Set “Priced in” to another coin, or pick a p
 
 Quotes come from CoinGecko. Candles come from Kraken, with Coinbase as a backup. No API key is required.
 
-The open charts, the selected coin, each range, candle or line, and any ratio are saved in this browser. A refresh restores that layout. The light or dark theme is saved the same way. Use Dark in the header to switch.
+The open charts, the selected coin, each range, candle or line, any ratio, and whether the market list is hidden are saved in this browser. A refresh restores that layout. The light or dark theme is saved the same way. Use Dark in the header to switch, and Hide to collapse the market list.
 
 ## Run locally
 

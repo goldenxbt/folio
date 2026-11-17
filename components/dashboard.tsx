@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { Plus } from "lucide-react";
+import { PanelLeft, Plus } from "lucide-react";
 import { ChartPanel } from "@/components/chart-panel";
 import { MarketSidebar, MarketStrip } from "@/components/market-sidebar";
 import { Button } from "@/components/ui/button";
@@ -138,6 +138,7 @@ export function Dashboard() {
     if (layout.charts.length >= MAX_CHARTS) return;
     const id = crypto.randomUUID();
     update({
+      ...layout,
       charts: [...layout.charts, { id, coinId, range: "1D", mode: "candle", versusId: null }],
       activeId: id,
     });
@@ -170,6 +171,7 @@ export function Dashboard() {
     if (layout.charts.length === 1) return;
     const charts = layout.charts.filter((chart) => chart.id !== id);
     update({
+      ...layout,
       charts,
       activeId: layout.activeId === id ? charts[0].id : layout.activeId,
     });
@@ -201,9 +203,19 @@ export function Dashboard() {
     patchChart(id, { versusId });
   }
 
+  function setSidebar(open: boolean) {
+    update({ ...layout, sidebarOpen: open });
+  }
+
   return (
     <div className="flex h-dvh flex-col bg-background md:flex-row">
-      <aside className="hidden h-dvh w-[320px] shrink-0 border-r border-border bg-sidebar md:block">
+      <aside
+        className={
+          layout.sidebarOpen
+            ? "hidden h-dvh w-[320px] shrink-0 border-r border-border bg-sidebar md:block"
+            : "hidden"
+        }
+      >
         <MarketSidebar
           quotes={quotes}
           updatedAt={updatedAt}
@@ -219,23 +231,55 @@ export function Dashboard() {
           onSelectPair={selectPair}
           onOpen={openCoin}
           onAdd={addChart}
+          onHide={() => setSidebar(false)}
           onRetry={() => setQuoteRetry((count) => count + 1)}
         />
       </aside>
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        {layout.sidebarOpen ? null : (
+          <div className="hidden border-b border-border px-3 py-2 md:block">
+            <Button
+              variant="outline"
+              size="sm"
+              aria-expanded={false}
+              aria-controls="market-sidebar"
+              onClick={() => setSidebar(true)}
+            >
+              <PanelLeft />
+              Markets
+            </Button>
+          </div>
+        )}
+
         <div className="md:hidden">
-          <MarketStrip
-            quotes={quotes}
-            activeCoinId={active?.coinId ?? null}
-            activeVersusId={active?.versusId ?? null}
-            onSelect={selectCoin}
-            onSelectPair={selectPair}
-          />
+          {layout.sidebarOpen ? (
+            <MarketStrip
+              quotes={quotes}
+              activeCoinId={active?.coinId ?? null}
+              activeVersusId={active?.versusId ?? null}
+              onSelect={selectCoin}
+              onSelectPair={selectPair}
+              onHide={() => setSidebar(false)}
+            />
+          ) : null}
           <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-2">
-            <p className="text-xs text-muted-foreground">
-              {layout.charts.length} of {MAX_CHARTS} charts
-            </p>
+            <div className="flex items-center gap-2">
+              {layout.sidebarOpen ? null : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  aria-expanded={false}
+                  onClick={() => setSidebar(true)}
+                >
+                  <PanelLeft />
+                  Markets
+                </Button>
+              )}
+              <p className="text-xs text-muted-foreground">
+                {layout.charts.length} of {MAX_CHARTS} charts
+              </p>
+            </div>
             <Button size="sm" onClick={addChart} disabled={!canAdd}>
               <Plus />
               Add chart
