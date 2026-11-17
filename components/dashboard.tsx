@@ -370,7 +370,7 @@ export function Dashboard() {
         </div>
 
         {layout.sidebarOpen ? null : (
-          <div className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-2">
+          <div className="flex shrink-0 items-center gap-2 border-b border-border px-4 py-2 md:hidden">
             <Button
               variant="outline"
               size="icon-sm"
@@ -398,7 +398,7 @@ export function Dashboard() {
             layout.charts.length <= 2 ? "md:grid-rows-1" : "",
           ].join(" ")}
         >
-          {layout.charts.map((chart) => (
+          {layout.charts.map((chart, index) => (
             <ChartPanel
               key={chart.id}
               id={chart.id}
@@ -413,6 +413,31 @@ export function Dashboard() {
               active={chart.id === layout.activeId}
               canClose={layout.charts.length > 1}
               showSelected={layout.charts.length > 1 && chart.id === layout.activeId}
+              headerTools={
+                layout.sidebarOpen || index > 0 ? null : (
+                  <div
+                    className="hidden shrink-0 items-center gap-1.5 md:flex"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <ChartJumpButtons
+                      charts={layout.charts}
+                      activeId={layout.activeId}
+                      onJump={jumpToChart}
+                    />
+                    <Button
+                      variant="outline"
+                      size="icon-sm"
+                      className="shrink-0"
+                      aria-label="Show markets"
+                      aria-expanded={false}
+                      aria-controls="market-sidebar"
+                      onClick={() => setSidebar(true)}
+                    >
+                      <PanelLeft />
+                    </Button>
+                  </div>
+                )
+              }
               quote={quoteById.get(chart.coinId) ?? null}
               versusQuote={chart.versusId ? (quoteById.get(chart.versusId) ?? null) : null}
               onActivate={() => update({ ...layout, activeId: chart.id })}
